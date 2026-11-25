@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>定期考査 監督表 自動作成</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;margin:0;background:#f4f6f8;color:#222;font-size:14px}
+header{background:#1f4e79;color:#fff;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+header h1{font-size:17px;margin:0 12px 0 0}
+select,button{font-size:14px;padding:6px 10px;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+button.primary{background:#2e75b6;color:#fff;border-color:#2e75b6}
+button.danger{background:#fff;color:#b03a2e;border-color:#b03a2e}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.active{background:#1f4e79;color:#fff;border-color:#1f4e79}
+
+.homecards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;padding:24px 8px}
+.homecard{flex:1 1 260px;max-width:380px;min-height:150px;border-radius:14px;border:2px solid #1f4e79;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;box-shadow:0 2px 8px rgba(31,78,121,.15)}
+.homecard:hover{background:#eaf2fa}
+.homecard{position:relative}
+.stepnum{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#1f4e79;color:#fff;font-weight:bold;font-size:15px;flex:none}
+.homecard .stepnum{position:absolute;top:12px;left:12px}
+.steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.step{display:inline-flex;gap:6px;align-items:center;padding:4px 10px 4px 4px;border:1px solid #bbb;border-radius:999px;background:#f4f6f8;color:#666;font-size:13px}
+.step .stepnum{width:22px;height:22px;font-size:13px;background:#999}
+.step.cur{border-color:#1f4e79;background:#eaf2fa;color:#1f4e79;font-weight:bold}
+.step.cur .stepnum{background:#1f4e79}
+.step.done{color:#256029;border-color:#9c9;background:#e8f3e8}
+.step.done .stepnum{background:#2e7d32}
+.steparrow{color:#999}
+button.step{cursor:pointer;font:inherit;text-align:left}
+.homecard .hc-title{font-size:24px;font-weight:bold;color:#1f4e79}
+.homecard .hc-sub{font-size:13px;color:#555}
+main{padding:12px 14px 30px}
+table{border-collapse:collapse;background:#fff;width:100%}
+th,td{border:1px solid #c9d1d9;padding:3px 4px;text-align:center;white-space:nowrap;font-size:12.5px}
+th{background:#dbe7f3}
+td.name,th.name{text-align:left;white-space:nowrap}
+td.prefill{background:#fff3cd;font-weight:bold;cursor:pointer}
+td.assign{background:#e8f3e8}
+td.standby{background:#eef2ff;color:#445}
+td.empty{cursor:pointer}
+.warn{background:#fdecea;border:1px solid #e5a09a;border-radius:8px;padding:8px 12px;margin:10px 0}
+.warn h3{margin:0 0 4px;font-size:14px;color:#922b21}
+.note{color:#a33;font-size:12px}
+.slotblock{margin-bottom:16px;background:#fff;border:1px solid #c9d1d9;border-radius:8px;padding:8px}
+.slotblock h3{margin:0 0 6px;font-size:14px}
+.slotblock table{width:auto;min-width:60%}
+td.sup{cursor:pointer;background:#e8f3e8;min-width:110px}
+td.sup.none{background:#fdecea;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:50}
+.modal.open{display:flex}
+.modal .box{background:#fff;border-radius:10px;padding:16px;max-width:92vw;max-height:85vh;overflow:auto;min-width:280px}
+.modal .box h3{margin:0 0 10px;font-size:15px}
+.modal .opt{display:block;width:100%;text-align:left;margin:4px 0}
+.scroll{overflow-x:auto}
+input[type=number]{width:64px;padding:4px}
+input[type=text]{padding:4px}
+input[type=file]{font-size:13px}
+.small{font-size:12px;color:#555}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;background:#eef2ff;border:1px solid #aab}
+.badge.locked{background:#fdecea;border-color:#e5a09a;color:#922b21}
+.badge.open{background:#e8f3e8;border-color:#9c9;color:#256029}
+#loginScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;gap:16px}
+#loginScreen h1{font-size:22px;color:#1f4e79;margin:0}
+#loginScreen button{font-size:16px;padding:12px 32px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.subtabs{display:flex;gap:6px;margin:6px 0 10px}
+@media print{
+  header,nav,.noprint,.controls,.subtabs{display:none!important}
+  body{background:#fff}
+  main{padding:0}
+  .view{display:none!important}
+  .view.printtarget{display:block!important}
+  table{font-size:11px}
+  .stepnav{display:none!important}
+  .estep{display:none!important}
+  #estep4{display:block!important}
+}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <h1>定期考査 監督表</h1>
+  <button class="primary" id="btnLogin">教務ログイン</button>
+</div>
+
+<div id="appRoot" style="display:none">
+<header>
+  <h1>定期考査 監督表</h1>
+  <button id="btnHome">ホーム</button>
+  <button id="yearBadge">----年度</button>
+  <span style="flex:1"></span>
+  <button id="btnLogout">ログアウト</button>
+</header>
+<main>
+  <section id="view-home" class="view">
+    <div class="homecards">
+      <button class="homecard" id="cardSettings"><span class="stepnum">1</span><span class="hc-title">基本設定</span><span class="hc-sub">年間計画・教室割・教員一覧・年度管理</span></button>
+      <button class="homecard" id="cardExam"><span class="stepnum">2</span><span class="hc-title">監督表作成</span><span class="hc-sub">事前記入・自動割当・確定</span></button>
+    </div>
+  </section>
+  <section id="view-basic" class="view" style="display:none">
+    <div class="homecards">
+      <button class="homecard" data-basic="plan"><span class="stepnum">1</span><span class="hc-title">年間計画</span><span class="hc-sub">考査の日程・時間割の登録</span></button>
+      <button class="homecard" data-basic="rooms"><span class="stepnum">2</span><span class="hc-title">教室割</span><span class="hc-sub">3年 選択科目 → 実施教室</span></button>
+      <button class="homecard" data-basic="teachers"><span class="stepnum">3</span><span class="hc-title">教員一覧</span><span class="hc-sub">氏名・学年・分掌の登録</span></button>
+      <button class="homecard" data-basic="settings"><span class="stepnum">4</span><span class="hc-title">教室・時間</span><span class="hc-sub">1・2年の教室と試験時間</span></button>
+      <button class="homecard" data-basic="year"><span class="stepnum">5</span><span class="hc-title">年度管理</span><span class="hc-sub">年度の追加・切替</span></button>
+    </div>
+  </section>
+  <section id="view-exam" class="view">
+    <div class="steps noprint" id="examSteps"></div>
+    <div id="examMain">
+      <div id="noExamMsg"></div>
+      <div id="examPanels">
+      <div class="estep" id="estep1">
+        <h3>① 考査を選ぶ</h3>
+        <p><select id="examSelect" style="font-size:16px;padding:6px"></select> <span id="examStatus" class="badge open">未確定</span></p>
+        <p class="small" id="examOutline"></p>
+        <p class="stepnav noprint"><button class="primary" data-go="2">次へ：○・休などの入力 →</button></p>
+      </div>
+      <div class="estep" id="estep2" style="display:none">
+        <h3>② ○・休などを入力</h3>
+        <div class="controls noprint">
+          <span class="small">教員別表Excel読込：</span>
+          <input type="file" id="fileInput" accept=".xlsx,.xls">
+          <span id="uploadMsg" class="small"></span>
+        </div>
+        <div class="scroll"><table id="teacherTable"></table></div>
+        <p class="small">黄色セル＝事前記入（タップで変更）。○・待機・会議室は監督数に数えません。</p>
+        <p class="stepnav noprint"><button data-go="1">← 戻る</button> <button class="primary" id="btnStep2Next">次へ：自動割当 →</button></p>
+      </div>
+      <div class="estep" id="estep4" style="display:none">
+        <h3>④ 一覧で確認</h3>
+        <div id="assignSummary"></div>
+        <div id="warnArea"></div>
+        <div class="scroll"><table id="teacherTable2"></table></div>
+        <p class="small">セルをタップすると、そのコマの監督者を選び直したり、○・休などの記入を変更できます。</p>
+        <p class="noprint"><button id="btnShuffle">再割当（シャッフル）</button> <button class="danger" id="btnClear">割当クリア</button> <span class="small">割り当て直すときは、上の手順バーの「3 自動割当」からもできます。</span></p>
+        <p class="stepnav noprint"><button data-go="2">← 戻る</button> <button class="primary" data-go="5">次へ：確定 →</button></p>
+      </div>
+      <div class="estep" id="estep5" style="display:none">
+        <h3>⑤ 確定</h3>
+        <p id="confirmInfo"></p>
+        <p><button class="primary" id="btnConfirm">確定</button> <button id="btnPrint">印刷</button> <button id="btnExcel">Excel出力</button></p>
+        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷ではステップ④の一覧表が出ます。</p>
+        <p class="stepnav noprint"><button data-go="4">← 戻る</button></p>
+      </div>
+      </div>
+    </div>
+  </section>
+  <section id="view-plan" class="view" style="display:none">
+    <p class="noprint"><button class="backbasic">← 基本設定</button></p>
+    <h3>① 年間考査計画</h3>
+    <div class="controls noprint">
+      <input type="text" id="newExamName" placeholder="新しい考査名（例：１学期 中間考査）" size="28">
+      <button id="btnAddExam">考査を追加</button>
+      <span class="small">年間計画Excel取込：</span>
+      <input type="file" id="planFile" accept=".xlsx,.xls">
+      <span id="planMsg" class="small"></span>
+    </div>
+    <div id="planImportPanel"></div>
+    <div id="planArea"></div>
+  </section>
+
+  <section id="view-rooms" class="view" style="display:none">
+    <p class="noprint"><button class="backbasic">← 基本設定</button></p>
+    <h3>② 教室割マスター（3年 選択科目 → 実施教室）</h3>
+    <div class="controls noprint">
+      <span class="small">教室割Excel読込：</span>
+      <input type="file" id="roomFile" accept=".xlsx,.xls">
+      <span id="roomMsg" class="small"></span>
+    </div>
+    <div id="roomImportPanel"></div>
+    <div id="unregArea"></div>
+    <div class="scroll"><table id="masterTable" style="width:auto"></table></div>
+    <p class="noprint"><button id="btnAddMaster">行を追加</button> <span class="small">科目名の一部が一致すれば適用されます（長い科目名が優先）。共通科目は 3-1〜3-4 です。</span></p>
+  </section>
+
+  <section id="view-teachers" class="view" style="display:none">
+    <p class="noprint"><button class="backbasic">← 基本設定</button></p>
+    <h3>③ 教員一覧</h3>
+    <div class="controls noprint">
+      <span class="small">教員一覧Excel読込：</span>
+      <input type="file" id="teacherListFile" accept=".xlsx,.xls">
+      <span id="teacherListMsg" class="small"></span>
+    </div>
+    <p class="small">教員別表（前回迄つき）または「氏名・学年・分掌」の一覧表から取り込めます。取り込むと教員一覧を置き換え、各考査の割当・事前記入・確定はクリアされます。</p>
+    <p class="small" id="teacherSum"></p>
+    <div class="scroll"><table id="teacherMasterTable" style="width:auto"></table></div>
+    <p class="noprint"><button id="btnAddTeacher">教員を追加</button></p>
+  </section>
+
+  <section id="view-settings" class="view" style="display:none">
+    <p class="noprint"><button class="backbasic">← 基本設定</button></p>
+    <h3>④ 教室・試験時間</h3>
+    <table style="width:auto">
+      <tr><th>1年の教室（カンマ区切り）</th><td><input type="text" id="setG1" size="42"></td></tr>
+      <tr><th>2年の教室（カンマ区切り）</th><td><input type="text" id="setG2" size="42"></td></tr>
+      <tr><th>試験時間（1時間目）</th><td><input type="text" id="setTimeP1" size="20"></td></tr>
+      <tr><th>試験時間（2時間目）</th><td><input type="text" id="setTimeP2" size="20"></td></tr>
+      <tr><th>試験時間（3時間目）</th><td><input type="text" id="setTimeP3" size="20"></td></tr>
+      <tr><th>試験時間（4時間目）</th><td><input type="text" id="setTimeP4" size="20"></td></tr>
+    </table>
+    <p><button class="danger" id="btnReset">初期データに戻す（保存データを消去）</button></p>
+  </section>
+  <section id="view-year" class="view" style="display:none">
+    <p class="noprint"><button class="backbasic">← 基本設定</button></p>
+    <h3>⑤ 年度管理</h3>
+    <div id="yearAdminList"></div>
+    <p><input type="text" id="newYear2" placeholder="例：2027" size="8"> 年度を <button id="btnAddYear2">追加</button></p>
+    <p class="small">年度を追加すると、現在の年度の教員一覧・教室割・基本設定を引き継ぎ、年間計画と累計は空（0）から始まります。</p>
+  </section>
+</main>
+</div>
+
+<div class="modal" id="modal"><div class="box"><h3 id="modalTitle"></h3><div id="modalOpts"></div><button class="opt" id="modalCancel">キャンセル</button></div></div>
+<div class="modal" id="yearModal"><div class="box"><h3>年度を選択</h3><p><select id="yearSelect" style="font-size:16px;padding:6px;min-width:180px"></select> <button class="primary" id="btnOpenYear">この年度で開く</button></p>
+<p><input type="text" id="newYear" placeholder="例：2027" size="8"> 年度を <button id="btnAddYear">追加</button></p>
+<p class="small">年度を追加すると、現在の年度の教員一覧・教室割・基本設定を引き継ぎ、年間計画と累計は空（0）から始まります。</p>
+<button class="opt" id="yearCancel">閉じる</button></div></div>
+
+<script type="application/json" id="initial-data">{"exams": [{"id": "exam-mid2", "name": "2学期 中間考査", "slots": [{"date": "10月20日（火）", "period": 1, "subjects": {"g1": "火①", "g2": "文学国語", "g3b": "政治経済", "g3r": "政治経済"}}, {"date": "10月20日（火）", "period": 2, "subjects": {"g1": "火②", "g2": "物理基礎", "g3b": "数学理解（文）", "g3r": "日本史探究（理）"}}, {"date": "10月20日（火）", "period": 3, "subjects": {"g1": "火③", "g2": null, "g3b": null, "g3r": null}}, {"date": "10月20日（火）", "period": 4, "subjects": {"g1": "火④", "g2": null, "g3b": null, "g3r": null}}, {"date": "10月21日（水）", "period": 1, "subjects": {"g1": "数学ⅠA", "g2": "歴史総合", "g3b": "文学国語", "g3r": "文学国語"}}, {"date": "10月21日（水）", "period": 2, "subjects": {"g1": null, "g2": "数学Ⅱ", "g3b": "世界史探究", "g3r": "世界史探究\n数学B"}}, {"date": "10月22日（木）", "period": 1, "subjects": {"g1": "公共", "g2": "論理国語", "g3b": "英語ＣⅢ", "g3r": "英語ＣⅢ"}}, {"date": "10月22日（木）", "period": 2, "subjects": {"g1": "現代の国語\n言語文化", "g2": "生物基礎", "g3b": "日本史探究（文）", "g3r": "生物・物理・化学"}}, {"date": "10月22日（木）", "period": 3, "subjects": {"g1": null, "g2": null, "g3b": "生物\n化学", "g3r": null}}, {"date": "10月23日（金）", "period": 1, "subjects": {"g1": "化学基礎", "g2": "英語CⅡ", "g3b": "論理国語", "g3r": "論理国語"}}, {"date": "10月23日（金）", "period": 2, "subjects": {"g1": "英語CⅠ", "g2": "地理総合", "g3b": "総合古典", "g3r": "数学ⅢＣ\n数学理解"}}], "teachers": [{"name": "久保田　佳代子", "role": "1副担", "prev": 6}, {"name": "寺嶋　亮人", "role": "１－３", "prev": 10}, {"name": "松井　和彦", "role": "３－２", "prev": 9}, {"name": "後藤　健史", "role": "１年主", "prev": 13}, {"name": "新屋　広晃", "role": "１－４", "prev": 8}, {"name": "福島　巌", "role": "２－３", "prev": 9}, {"name": "千葉　淳裕", "role": "教務主", "prev": 10}, {"name": "西村　尚輝", "role": "２－１", "prev": 10}, {"name": "東原　大地", "role": "生徒主", "prev": 11}, {"name": "古澤　千晴", "role": "３－１", "prev": 10}, {"name": "土居　晶子", "role": "１－１", "prev": 9}, {"name": "藤後　浩司", "role": "２－５", "prev": 9}, {"name": "大塚　実奈", "role": "１－２", "prev": 12}, {"name": "川端　孝樹", "role": "３－３", "prev": 11}, {"name": "野木　悟志", "role": "３年主", "prev": 9}, {"name": "橋本　健二", "role": "２－２", "prev": 9}, {"name": "竹石　七瀬", "role": "２副担", "prev": 12}, {"name": "三輪　恭子", "role": "３副担", "prev": 8}, {"name": "白根　裕志", "role": "進路主", "prev": 11}, {"name": "須藤　純子", "role": "３副担", "prev": 10}, {"name": "髙橋　久美", "role": "２副担", "prev": 10}, {"name": "高橋　昌美", "role": "３－４", "prev": 10}, {"name": "仲川　凛彩", "role": "１副担", "prev": 10}, {"name": "斉藤　徳美", "role": "１－５", "prev": 11}, {"name": "星野　小夜子", "role": "２－４", "prev": 10}, {"name": "會田　泰之", "role": "２年主", "prev": 12}], "prefill": {"0": {"6": "○"}, "1": {"0": "授", "1": "授", "3": "授", "7": "○", "9": "休", "10": "休"}, "2": {"0": "○", "4": "○", "9": "○"}, "3": {"2": "授", "6": "○", "10": "○"}, "4": {"0": "授", "1": "○", "4": "休", "5": "休", "6": "○", "7": "○"}, "5": {"0": "休", "1": "休", "2": "休", "3": "休", "4": "○", "5": "○"}, "6": {"3": "授", "4": "○"}, "7": {"0": "休", "1": "休", "2": "休", "3": "休", "5": "○", "10": "○"}, "8": {"1": "○", "3": "授", "6": "休", "7": "休", "8": "休"}, "9": {"10": "○"}, "10": {"0": "休", "1": "休", "2": "休", "3": "休", "7": "○", "8": "○"}, "11": {"1": "○", "2": "授", "4": "休", "5": "休", "7": "○", "8": "○", "9": "○"}, "14": {"6": "休", "7": "休", "8": "休"}, "15": {"6": "休", "7": "休", "8": "休"}, "16": {"9": "休", "10": "休"}, "17": {"9": "休", "10": "休"}, "18": {"1": "授"}, "19": {"1": "授", "6": "○", "10": "○"}, "20": {"9": "○"}, "21": {"4": "休", "5": "休", "6": "○"}, "22": {"0": "授", "1": "授", "2": "授", "10": "○"}, "23": {"0": "授", "4": "休", "5": "休"}, "24": {"1": "授", "2": "授"}, "25": {"0": "授", "1": "授", "2": "授"}}}, {"id": "plan-0", "name": "１学期 中間考査", "slots": [{"date": "5月18日（月）", "period": 1, "subjects": {"g1": null, "g2": "物理基礎", "g3b": "文学国語", "g3r": "文学国語"}}, {"date": "5月18日（月）", "period": 2, "subjects": {"g1": null, "g2": "地理総合", "g3b": "世界史探究", "g3r": "世界史探究\n数学B"}}, {"date": "5月19日（火）", "period": 1, "subjects": {"g1": "公共", "g2": "文学国語", "g3b": "論理国語", "g3r": "論理国語"}}, {"date": "5月19日（火）", "period": 2, "subjects": {"g1": "化学基礎", "g2": "歴史総合", "g3b": "総合古典", "g3r": "生物\n物理\n化学"}}, {"date": "5月19日（火）", "period": 3, "subjects": {"g1": null, "g2": null, "g3b": "生物\n化学", "g3r": null}}, {"date": "5月20日（水）", "period": 1, "subjects": {"g1": "数学ⅠA", "g2": "論理国語", "g3b": "英語ＣⅢ", "g3r": "英語ＣⅢ"}}, {"date": "5月20日（水）", "period": 2, "subjects": {"g1": null, "g2": "生物基礎", "g3b": "数学理解（文）", "g3r": "日本史探究（理）"}}, {"date": "5月21日（木）", "period": 1, "subjects": {"g1": "英語ＣⅠ", "g2": "数学Ⅱ", "g3b": "政治経済", "g3r": "政治経済"}}, {"date": "5月21日（木）", "period": 2, "subjects": {"g1": "現代の国語\n言語文化", "g2": "英語CⅡ", "g3b": "日本史探究（文）", "g3r": "数学ⅢC\n数学理解"}}], "teachers": [{"name": "久保田　佳代子", "role": "1副担", "prev": 6}, {"name": "寺嶋　亮人", "role": "１－３", "prev": 10}, {"name": "松井　和彦", "role": "３－２", "prev": 9}, {"name": "後藤　健史", "role": "１年主", "prev": 13}, {"name": "新屋　広晃", "role": "１－４", "prev": 8}, {"name": "福島　巌", "role": "２－３", "prev": 9}, {"name": "千葉　淳裕", "role": "教務主", "prev": 10}, {"name": "西村　尚輝", "role": "２－１", "prev": 10}, {"name": "東原　大地", "role": "生徒主", "prev": 11}, {"name": "古澤　千晴", "role": "３－１", "prev": 10}, {"name": "土居　晶子", "role": "１－１", "prev": 9}, {"name": "藤後　浩司", "role": "２－５", "prev": 9}, {"name": "大塚　実奈", "role": "１－２", "prev": 12}, {"name": "川端　孝樹", "role": "３－３", "prev": 11}, {"name": "野木　悟志", "role": "３年主", "prev": 9}, {"name": "橋本　健二", "role": "２－２", "prev": 9}, {"name": "竹石　七瀬", "role": "２副担", "prev": 12}, {"name": "三輪　恭子", "role": "３副担", "prev": 8}, {"name": "白根　裕志", "role": "進路主", "prev": 11}, {"name": "須藤　純子", "role": "３副担", "prev": 10}, {"name": "髙橋　久美", "role": "２副担", "prev": 10}, {"name": "高橋　昌美", "role": "３－４", "prev": 10}, {"name": "仲川　凛彩", "role": "１副担", "prev": 10}, {"name": "斉藤　徳美", "role": "１－５", "prev": 11}, {"name": "星野　小夜子", "role": "２－４", "prev": 10}, {"name": "會田　泰之", "role": "２年主", "prev": 12}], "prefill": {}}, {"id": "plan-1", "name": "１学期 期末考査", "slots": [{"date": "7月7日（火）", "period": 1, "subjects": {"g1": "論理表現Ⅰ", "g2": "英語ＣⅡ", "g3b": "日本史探究（文）", "g3r": "数学ⅢＣ\n数学理解"}}, {"date": "7月7日（火）", "period": 2, "subjects": {"g1": "情報Ⅰ", "g2": "家庭総合", "g3b": "英語ＣⅢ", "g3r": "英語ＣⅢ"}}, {"date": "7月7日（火）", "period": 3, "subjects": {"g1": null, "g2": "生物基礎", "g3b": "数学理解（文）\n保育基礎\n実用英語", "g3r": "日本史探究（理）\n保育基礎\n実用英語"}}, {"date": "7月8日（水）", "period": 1, "subjects": {"g1": "現代の国語\n言語文化", "g2": "数学Ⅱ", "g3b": "文学国語", "g3r": "文学国語"}}, {"date": "7月8日（水）", "period": 2, "subjects": {"g1": "英語ＣⅠ", "g2": "保健", "g3b": "総合古典", "g3r": "生物\n物理\n化学"}}, {"date": "7月8日（水）", "period": 3, "subjects": {"g1": "家庭総合", "g2": "文学国語", "g3b": "生物\n化学", "g3r": null}}, {"date": "7月9日（木）", "period": 1, "subjects": {"g1": "数学ⅠA", "g2": "論理国語", "g3b": "論理国語", "g3r": "論理国語"}}, {"date": "7月9日（木）", "period": 2, "subjects": {"g1": "公共", "g2": "地理総合", "g3b": "世界史探究\nフードデザイン", "g3r": "世界史探究\n数学B\nフードデザイン"}}, {"date": "7月10日（金）", "period": 1, "subjects": {"g1": "保健", "g2": "物理基礎", "g3b": "論理表現Ⅱ", "g3r": "論理表現Ⅱ"}}, {"date": "7月10日（金）", "period": 2, "subjects": {"g1": "化学基礎", "g2": "歴史総合", "g3b": "政治経済", "g3r": "政治経済"}}], "teachers": [{"name": "久保田　佳代子", "role": "1副担", "prev": 6}, {"name": "寺嶋　亮人", "role": "１－３", "prev": 10}, {"name": "松井　和彦", "role": "３－２", "prev": 9}, {"name": "後藤　健史", "role": "１年主", "prev": 13}, {"name": "新屋　広晃", "role": "１－４", "prev": 8}, {"name": "福島　巌", "role": "２－３", "prev": 9}, {"name": "千葉　淳裕", "role": "教務主", "prev": 10}, {"name": "西村　尚輝", "role": "２－１", "prev": 10}, {"name": "東原　大地", "role": "生徒主", "prev": 11}, {"name": "古澤　千晴", "role": "３－１", "prev": 10}, {"name": "土居　晶子", "role": "１－１", "prev": 9}, {"name": "藤後　浩司", "role": "２－５", "prev": 9}, {"name": "大塚　実奈", "role": "１－２", "prev": 12}, {"name": "川端　孝樹", "role": "３－３", "prev": 11}, {"name": "野木　悟志", "role": "３年主", "prev": 9}, {"name": "橋本　健二", "role": "２－２", "prev": 9}, {"name": "竹石　七瀬", "role": "２副担", "prev": 12}, {"name": "三輪　恭子", "role": "３副担", "prev": 8}, {"name": "白根　裕志", "role": "進路主", "prev": 11}, {"name": "須藤　純子", "role": "３副担", "prev": 10}, {"name": "髙橋　久美", "role": "２副担", "prev": 10}, {"name": "高橋　昌美", "role": "３－４", "prev": 10}, {"name": "仲川　凛彩", "role": "１副担", "prev": 10}, {"name": "斉藤　徳美", "role": "１－５", "prev": 11}, {"name": "星野　小夜子", "role": "２－４", "prev": 10}, {"name": "會田　泰之", "role": "２年主", "prev": 12}], "prefill": {}}, {"id": "plan-3", "name": "２学期 期末考査", "slots": [{"date": "12月8日（火）", "period": 1, "subjects": {"g1": "保健", "g2": "文学国語", "g3b": "英語ＣⅢ", "g3r": "英語ＣⅢ"}}, {"date": "12月8日（火）", "period": 2, "subjects": {"g1": "論理表現Ⅰ", "g2": "保健", "g3b": "総合古典", "g3r": "数学ⅢＣ\n数学理解"}}, {"date": "12月8日（火）", "period": 3, "subjects": {"g1": null, "g2": "生物基礎", "g3b": "数学理解（文）\n保育基礎\n実用英語", "g3r": "日本史探究（理）\n保育基礎\n実用英語"}}, {"date": "12月9日（水）", "period": 1, "subjects": {"g1": "化学基礎", "g2": "家庭総合", "g3b": "文学国語", "g3r": "文学国語"}}, {"date": "12月9日（水）", "period": 2, "subjects": {"g1": "現代の国語\n言語文化", "g2": "歴史総合", "g3b": "日本史探究（文）", "g3r": "生物\n物理\n化学"}}, {"date": "12月9日（水）", "period": 3, "subjects": {"g1": "家庭総合", "g2": "物理基礎", "g3b": "生物\n化学", "g3r": null}}, {"date": "12月10日（木）", "period": 1, "subjects": {"g1": "英語ＣⅠ", "g2": "論理国語", "g3b": "論理国語", "g3r": "論理国語"}}, {"date": "12月10日（木）", "period": 2, "subjects": {"g1": "数学ⅠＡ", "g2": "地理総合", "g3b": "世界史探究\nフードデザイン", "g3r": "世界史探究\n数学B\nフードデザイン"}}, {"date": "12月11日（金）", "period": 1, "subjects": {"g1": "情報Ⅰ", "g2": "英語ＣⅡ", "g3b": "論理表現Ⅱ", "g3r": "論理表現Ⅱ"}}, {"date": "12月11日（金）", "period": 2, "subjects": {"g1": "公共", "g2": "数学Ⅱ", "g3b": "政治経済", "g3r": "政治経済"}}], "teachers": [{"name": "久保田　佳代子", "role": "1副担", "prev": 6}, {"name": "寺嶋　亮人", "role": "１－３", "prev": 10}, {"name": "松井　和彦", "role": "３－２", "prev": 9}, {"name": "後藤　健史", "role": "１年主", "prev": 13}, {"name": "新屋　広晃", "role": "１－４", "prev": 8}, {"name": "福島　巌", "role": "２－３", "prev": 9}, {"name": "千葉　淳裕", "role": "教務主", "prev": 10}, {"name": "西村　尚輝", "role": "２－１", "prev": 10}, {"name": "東原　大地", "role": "生徒主", "prev": 11}, {"name": "古澤　千晴", "role": "３－１", "prev": 10}, {"name": "土居　晶子", "role": "１－１", "prev": 9}, {"name": "藤後　浩司", "role": "２－５", "prev": 9}, {"name": "大塚　実奈", "role": "１－２", "prev": 12}, {"name": "川端　孝樹", "role": "３－３", "prev": 11}, {"name": "野木　悟志", "role": "３年主", "prev": 9}, {"name": "橋本　健二", "role": "２－２", "prev": 9}, {"name": "竹石　七瀬", "role": "２副担", "prev": 12}, {"name": "三輪　恭子", "role": "３副担", "prev": 8}, {"name": "白根　裕志", "role": "進路主", "prev": 11}, {"name": "須藤　純子", "role": "３副担", "prev": 10}, {"name": "髙橋　久美", "role": "２副担", "prev": 10}, {"name": "高橋　昌美", "role": "３－４", "prev": 10}, {"name": "仲川　凛彩", "role": "１副担", "prev": 10}, {"name": "斉藤　徳美", "role": "１－５", "prev": 11}, {"name": "星野　小夜子", "role": "２－４", "prev": 10}, {"name": "會田　泰之", "role": "２年主", "prev": 12}], "prefill": {}}, {"id": "plan-4", "name": "３学期 学年末考査（３年）", "slots": [{"date": "1月26日（火）", "period": 1, "subjects": {"g3b": "論理国語", "g3r": "論理国語"}}, {"date": "1月26日（火）", "period": 2, "subjects": {"g3b": "数学理解（文）\n保育基礎\n実用英語", "g3r": "日本史探究（理）\n保育基礎\n実用英語"}}, {"date": "1月27日（水）", "period": 1, "subjects": {"g3b": "英語ＣⅢ", "g3r": "英語ＣⅢ"}}, {"date": "1月27日（水）", "period": 2, "subjects": {"g3b": "政治経済", "g3r": "政治経済"}}, {"date": "1月27日（水）", "period": 3, "subjects": {"g3b": "世界史探究\nフードデザイン", "g3r": "世界史探究\n数学B\nフードデザイン"}}, {"date": "1月28日（木）", "period": 1, "subjects": {"g3b": "文学国語", "g3r": "文学国語"}}, {"date": "1月28日（木）", "period": 2, "subjects": {"g3b": "総合古典", "g3r": "生物\n物理\n化学"}}, {"date": "1月28日（木）", "period": 3, "subjects": {"g3b": "生物\n化学", "g3r": null}}, {"date": "1月29日（金）", "period": 1, "subjects": {"g3b": "論理表現Ⅱ", "g3r": "論理表現Ⅱ"}}, {"date": "1月29日（金）", "period": 2, "subjects": {"g3b": "日本史探究（文）", "g3r": "数学ⅢＣ\n数学理解"}}], "teachers": [{"name": "久保田　佳代子", "role": "1副担", "prev": 6}, {"name": "寺嶋　亮人", "role": "１－３", "prev": 10}, {"name": "松井　和彦", "role": "３－２", "prev": 9}, {"name": "後藤　健史", "role": "１年主", "prev": 13}, {"name": "新屋　広晃", "role": "１－４", "prev": 8}, {"name": "福島　巌", "role": "２－３", "prev": 9}, {"name": "千葉　淳裕", "role": "教務主", "prev": 10}, {"name": "西村　尚輝", "role": "２－１", "prev": 10}, {"name": "東原　大地", "role": "生徒主", "prev": 11}, {"name": "古澤　千晴", "role": "３－１", "prev": 10}, {"name": "土居　晶子", "role": "１－１", "prev": 9}, {"name": "藤後　浩司", "role": "２－５", "prev": 9}, {"name": "大塚　実奈", "role": "１－２", "prev": 12}, {"name": "川端　孝樹", "role": "３－３", "prev": 11}, {"name": "野木　悟志", "role": "３年主", "prev": 9}, {"name": "橋本　健二", "role": "２－２", "prev": 9}, {"name": "竹石　七瀬", "role": "２副担", "prev": 12}, {"name": "三輪　恭子", "role": "３副担", "prev": 8}, {"name": "白根　裕志", "role": "進路主", "prev": 11}, {"name": "須藤　純子", "role": "３副担", "prev": 10}, {"name": "髙橋　久美", "role": "２副担", "prev": 10}, {"name": "高橋　昌美", "role": "３－４", "prev": 10}, {"name": "仲川　凛彩", "role": "１副担", "prev": 10}, {"name": "斉藤　徳美", "role": "１－５", "prev": 11}, {"name": "星野　小夜子", "role": "２－４", "prev": 10}, {"name": "會田　泰之", "role": "２年主", "prev": 12}], "prefill": {}}, {"id": "plan-5", "name": "３学期 学年末考査（１・２年）", "slots": [{"date": "2月18日（木）", "period": 1, "subjects": {"g1": "論理表現Ⅰ", "g2": "文学国語"}}, {"date": "2月18日（木）", "period": 2, "subjects": {"g1": "化学基礎", "g2": "英語ＣⅡ"}}, {"date": "2月18日（木）", "period": 3, "subjects": {"g1": "情報Ⅰ", "g2": "物理基礎"}}, {"date": "2月19日（金）", "period": 1, "subjects": {"g1": "現代の国語\n言語文化", "g2": "家庭総合"}}, {"date": "2月19日（金）", "period": 2, "subjects": {"g1": "公共", "g2": "生物基礎"}}, {"date": "2月19日（金）", "period": 3, "subjects": {"g1": null, "g2": "論理国語"}}, {"date": "2月22日（月）", "period": 1, "subjects": {"g1": "保健", "g2": "歴史総合"}}, {"date": "2月22日（月）", "period": 2, "subjects": {"g1": "英語ＣⅠ", "g2": "数学Ⅱ"}}, {"date": "2月24日（水）", "period": 1, "subjects": {"g1": "家庭総合", "g2": "地理総合"}}, {"date": "2月24日（水）", "period": 2, "subjects": {"g1": "数学ⅠＡ", "g2": "保健"}}], "teachers": [{"name": "久保田　佳代子", "role": "1副担", "prev": 6}, {"name": "寺嶋　亮人", "role": "１－３", "prev": 10}, {"name": "松井　和彦", "role": "３－２", "prev": 9}, {"name": "後藤　健史", "role": "１年主", "prev": 13}, {"name": "新屋　広晃", "role": "１－４", "prev": 8}, {"name": "福島　巌", "role": "２－３", "prev": 9}, {"name": "千葉　淳裕", "role": "教務主", "prev": 10}, {"name": "西村　尚輝", "role": "２－１", "prev": 10}, {"name": "東原　大地", "role": "生徒主", "prev": 11}, {"name": "古澤　千晴", "role": "３－１", "prev": 10}, {"name": "土居　晶子", "role": "１－１", "prev": 9}, {"name": "藤後　浩司", "role": "２－５", "prev": 9}, {"name": "大塚　実奈", "role": "１－２", "prev": 12}, {"name": "川端　孝樹", "role": "３－３", "prev": 11}, {"name": "野木　悟志", "role": "３年主", "prev": 9}, {"name": "橋本　健二", "role": "２－２", "prev": 9}, {"name": "竹石　七瀬", "role": "２副担", "prev": 12}, {"name": "三輪　恭子", "role": "３副担", "prev": 8}, {"name": "白根　裕志", "role": "進路主", "prev": 11}, {"name": "須藤　純子", "role": "３副担", "prev": 10}, {"name": "髙橋　久美", "role": "２副担", "prev": 10}, {"name": "高橋　昌美", "role": "３－４", "prev": 10}, {"name": "仲川　凛彩", "role": "１副担", "prev": 10}, {"name": "斉藤　徳美", "role": "１－５", "prev": 11}, {"name": "星野　小夜子", "role": "２－４", "prev": 10}, {"name": "會田　泰之", "role": "２年主", "prev": 12}], "prefill": {}}]}</script>
+
+<script id="core">
+"use strict";
+const STANDBY_KEYS=['待機1','待機2','会議室'];
+const HR4=['3-1','3-2','3-3','3-4'];
+const DEFAULT_SETTINGS={ g1rooms:['1-1','1-2','1-3','1-4','1-5'], g2rooms:['2-1','2-2','2-3','2-4','2-5'], times:{ p1:'9:00〜9:50', p2:'10:05〜10:55', p3:'11:10〜12:00', p4:'12:15〜13:05' } };
+const DEFAULT_MASTER=[
+ {pattern:'フードデザイン',rooms:['3-2','3-4'],row:'any'},
+ {pattern:'世界史探究',rooms:['3-1','3-4'],row:'any'},
+ {pattern:'数学理解（文）',rooms:['3-2','3-4'],row:'any'},
+ {pattern:'日本史探究（理）',rooms:['3-3'],row:'any'},
+ {pattern:'日本史探究（文）',rooms:['3-2','3-3','3-4'],row:'any'},
+ {pattern:'実用英語',rooms:['3-1'],row:'any'},
+ {pattern:'保育基礎',rooms:['3-3'],row:'any'},
+ {pattern:'生物（文）',rooms:['3-2','3-3','3-4'],row:'any'},
+ {pattern:'化学（文）',rooms:['3-2','3-3','3-4'],row:'any'},
+ {pattern:'数学Ⅲ',rooms:['3-1'],row:'any'},
+ {pattern:'数学理解',rooms:['3-1'],row:'any'},
+ {pattern:'数学B',rooms:['3-3'],row:'any'},
+ {pattern:'物理',rooms:['3階講義室'],row:'any'},
+ {pattern:'生物',rooms:['3階講義室'],row:'r'},
+ {pattern:'化学',rooms:['3階講義室'],row:'r'},
+ {pattern:'生物',rooms:['3-2','3-3','3-4'],row:'b'},
+ {pattern:'化学',rooms:['3-2','3-3','3-4'],row:'b'},
+ {pattern:'文学国語',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'論理国語',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'総合古典',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'英語ＣⅢ',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'英語CⅢ',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'論理表現Ⅱ',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'政治経済',rooms:['3-1','3-2','3-3','3-4'],row:'any'}
+];
+function splitSubjects(s){ if(!s) return []; return String(s).split(/[\n・／\/、]/).map(function(x){return x.trim();}).filter(Boolean); }
+function isRegularLabel(s){ return /^[月火水木金土日][①②③④]/.test(String(s||'')); }
+function fw2hw(s){ return String(s==null?'':s).replace(/[Ａ-Ｚａ-ｚ０-９]/g,function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); }); }
+function matchMaster(token,row,master){
+  let best=null;
+  const tk=fw2hw(String(token==null?'':token));
+  (master||[]).forEach(function(m){
+    if(!m||!m.pattern) return;
+    if(m.row && m.row!=='any' && m.row!==row) return;
+    const pat=fw2hw(String(m.pattern));
+    if(pat && (tk===pat || tk.indexOf(pat)>=0)){
+      if(!best || pat.length>fw2hw(String(best.pattern)).length) best=m;
+    }
+  });
+  return best;
+}
+function grade3Rooms(bun,ri,master){
+  master=master||DEFAULT_MASTER;
+  const set=new Set(); let fallback=false;
+  [[bun,'b'],[ri,'r']].forEach(function(pair){
+    const s=pair[0], row=pair[1]; if(!s) return;
+    splitSubjects(s).forEach(function(t){
+      const m=matchMaster(t,row,master);
+      if(m) m.rooms.forEach(function(r){ set.add(r); });
+      else { HR4.forEach(function(r){ set.add(r); }); fallback=true; }
+    });
+  });
+  const order=['3-1','3-2','3-3','3-4','3階講義室'];
+  const rooms=order.filter(function(r){ return set.has(r); });
+  set.forEach(function(r){ if(rooms.indexOf(r)<0) rooms.push(r); });
+  return { rooms: rooms, fallback: fallback };
+}
+function roomsForSlot(slot,cfg){
+  const settings=(cfg&&cfg.settings)||DEFAULT_SETTINGS;
+  const master=(cfg&&cfg.master)||DEFAULT_MASTER;
+  const sub=(slot&&slot.subjects)||{}; const rooms=[]; let fallback=false;
+  if(sub.g1 && !isRegularLabel(sub.g1)) settings.g1rooms.forEach(function(r){ rooms.push(r); });
+  if(sub.g2 && !isRegularLabel(sub.g2)) settings.g2rooms.forEach(function(r){ rooms.push(r); });
+  if(sub.g3b||sub.g3r){ const g=grade3Rooms(sub.g3b,sub.g3r,master); g.rooms.forEach(function(r){ rooms.push(r); }); fallback=g.fallback; }
+  return { rooms: rooms, fallback: fallback };
+}
+function markAt(prefill,ti,si){
+  const t=prefill&&prefill[String(ti)]; if(!t) return null;
+  const v=t[String(si)]; return v?v:null;
+}
+function autoAssign(exam,prefill,rand,cfg){
+  rand=rand||Math.random;
+  const n=exam.teachers.length;
+  const counts=new Array(n).fill(0);
+  const standbyCounts=new Array(n).fill(0);
+  const dayCount={};
+  const assignments={}; const warnings=[];
+  const slotHasRooms=exam.slots.map(function(s){ return roomsForSlot(s,cfg).rooms.length>0; });
+  function remaining(ti,fromSi){
+    let c=0; for(let s=fromSi;s<exam.slots.length;s++){ if(slotHasRooms[s] && !markAt(prefill,ti,s)) c++; } return c;
+  }
+  exam.slots.forEach(function(slot,si){
+    const rooms=roomsForSlot(slot,cfg).rooms;
+    const a={}; assignments[si]=a;
+    if(rooms.length===0) return;
+    const cand=[];
+    for(let ti=0;ti<n;ti++){ if(!markAt(prefill,ti,si)) cand.push({ti:ti,r:rand(),rem:remaining(ti,si+1)}); }
+    const used=new Set();
+    const roomCand=cand.slice().sort(function(x,y){
+      if(counts[x.ti]!==counts[y.ti]) return counts[x.ti]-counts[y.ti];
+      if(x.rem!==y.rem) return x.rem-y.rem;
+      const dx=dayCount[x.ti+'|'+slot.date]||0, dy=dayCount[y.ti+'|'+slot.date]||0;
+      if(dx!==dy) return dx-dy;
+      const px=exam.teachers[x.ti].prev, py=exam.teachers[y.ti].prev;
+      if(px!==py) return px-py;
+      return x.r-y.r;
+    });
+    let ci=0;
+    rooms.forEach(function(room){
+      if(ci<roomCand.length){ const ti=roomCand[ci++].ti; a[room]=ti; used.add(ti); counts[ti]++; dayCount[ti+'|'+slot.date]=(dayCount[ti+'|'+slot.date]||0)+1; }
+      else warnings.push({si:si,room:room,type:'room'});
+    });
+    const rest=cand.filter(function(o){ return !used.has(o.ti); }).sort(function(x,y){
+      if(standbyCounts[x.ti]!==standbyCounts[y.ti]) return standbyCounts[x.ti]-standbyCounts[y.ti];
+      if(counts[x.ti]!==counts[y.ti]) return counts[x.ti]-counts[y.ti];
+      return x.r-y.r;
+    });
+    let ri=0;
+    STANDBY_KEYS.forEach(function(k){
+      if(ri<rest.length){ const ti=rest[ri++].ti; a[k]=ti; standbyCounts[ti]++; }
+      else warnings.push({si:si,room:k,type:'standby'});
+    });
+  });
+  return { assignments: assignments, warnings: warnings };
+}
+function computeCounts(exam,assignments){
+  const counts=new Array(exam.teachers.length).fill(0);
+  Object.keys(assignments||{}).forEach(function(si){
+    const a=assignments[si]||{};
+    Object.keys(a).forEach(function(k){
+      if(STANDBY_KEYS.indexOf(k)>=0) return;
+      if(typeof a[k]==='number') counts[a[k]]++;
+    });
+  });
+  return counts;
+}
+function computeWarnings(exam,assignments,cfg){
+  const warnings=[];
+  exam.slots.forEach(function(slot,si){
+    const rooms=roomsForSlot(slot,cfg).rooms;
+    if(rooms.length===0) return;
+    const a=(assignments&&assignments[si])||{};
+    rooms.forEach(function(room){ if(typeof a[room]!=='number') warnings.push({si:si,room:room,type:'room'}); });
+    STANDBY_KEYS.forEach(function(k){ if(typeof a[k]!=='number') warnings.push({si:si,room:k,type:'standby'}); });
+  });
+  return warnings;
+}
+function unregisteredSubjects(exams,master){
+  const found={}; const list=[];
+  (exams||[]).forEach(function(e){
+    (e.slots||[]).forEach(function(slot){
+      [['g3b','b'],['g3r','r']].forEach(function(pr){
+        const s=slot.subjects&&slot.subjects[pr[0]]; if(!s) return;
+        splitSubjects(s).forEach(function(t){
+          if(!matchMaster(t,pr[1],master||DEFAULT_MASTER) && !found[t]){ found[t]=true; list.push(t); }
+        });
+      });
+    });
+  });
+  return list;
+}
+function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+function examRank(name){
+  const n=fw2hw(String(name||'')).replace(/\s/g,'');
+  let term=9; if(n.indexOf('1学期')>=0) term=1; else if(n.indexOf('2学期')>=0) term=2; else if(n.indexOf('3学期')>=0) term=3;
+  let type=9; if(n.indexOf('中間')>=0) type=0; else if(n.indexOf('期末')>=0) type=1; else if(n.indexOf('学年末')>=0) type=2;
+  let sub=0; if(type===2 && n.indexOf('1・2年')>=0) sub=1;
+  return term*100+type*10+sub;
+}
+function sortExamList(exams){ if(exams&&exams.length>1) exams.sort(function(a,b){ return examRank(a.name)-examRank(b.name); }); return exams; }
+const GRADE_ROLES=['1-1','1-2','1-3','1-4','1-5','1学年副担任','1学年主任','2-1','2-2','2-3','2-4','2-5','2学年副担任','2学年主任','3-1','3-2','3-3','3-4','3-5','3学年副担任','3学年主任','教務主任','生徒指導主任','進路指導主事','総務主任'];
+const DIVISIONS=['教務','進路','生徒指導','総務'];
+const LEADER_DIVISION={'教務主任':'教務','生徒指導主任':'生徒指導','進路指導主事':'進路','総務主任':'総務'};
+function roleToGradeRole(role){
+  const n=fw2hw(String(role||'')).replace(/\s/g,'').replace(/－/g,'-');
+  if(GRADE_ROLES.indexOf(n)>=0) return n;
+  let m=n.match(/^([123])副担$/); if(m) return m[1]+'学年副担任';
+  m=n.match(/^([123])年主$/); if(m) return m[1]+'学年主任';
+  if(n==='教務主') return '教務主任';
+  if(n==='生徒主') return '生徒指導主任';
+  if(n==='進路主') return '進路指導主事';
+  if(n==='総務主') return '総務主任';
+  return '';
+}
+function roleToDivision(role){
+  const n=fw2hw(String(role||'')).replace(/\s/g,'');
+  if(DIVISIONS.indexOf(n)>=0) return n;
+  if(n==='教務主'||n==='教務主任') return '教務';
+  if(n==='生徒主'||n==='生徒指導主任') return '生徒指導';
+  if(n==='進路主'||n==='進路指導主事') return '進路';
+  if(n==='総務主'||n==='総務主任') return '総務';
+  return '';
+}
+function roleText(t){
+  if(!t) return '';
+  const parts=[];
+  if(t.gradeRole) parts.push(t.gradeRole);
+  if(t.division) parts.push(t.division);
+  return parts.length?parts.join('・'):(t.role||'');
+}
+function normalizeTeacher(t){
+  if(!t) return t;
+  if(t.gradeRole===undefined) t.gradeRole=roleToGradeRole(t.role);
+  if(t.division===undefined) t.division=roleToDivision(t.role);
+  if(t.gradeRole&&LEADER_DIVISION[t.gradeRole]&&!t.division) t.division=LEADER_DIVISION[t.gradeRole];
+  return t;
+}
+function normalizeSettings(y){
+  if(!y) return;
+  if(!y.settings) y.settings=deepCopy(DEFAULT_SETTINGS);
+  const t=y.settings.times||{}, d=DEFAULT_SETTINGS.times;
+  y.settings.times={ p1:t.p1||d.p1, p2:t.p2||d.p2, p3:t.p3||d.p3, p4:t.p4||d.p4 };
+}
+function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
+function buildInitialYear(initialExams){
+  const first=initialExams[0];
+  const teachers=first.teachers.map(function(t){ return {name:t.name, gradeRole:roleToGradeRole(t.role), division:roleToDivision(t.role), total:t.prev||0}; });
+  const exams=initialExams.map(function(e){ return {id:e.id, name:e.name, slots:deepCopy(e.slots)}; });
+  sortExamList(exams);
+  const examStates={};
+  initialExams.forEach(function(e){ examStates[e.id]={prefill:deepCopy(e.prefill||{}), assignments:{}, confirmed:false, snapshot:null}; });
+  return { teachers:teachers, exams:exams, examStates:examStates, master:deepCopy(DEFAULT_MASTER), settings:deepCopy(DEFAULT_SETTINGS) };
+}
+function createYearFrom(src){
+  src=src||{};
+  return {
+    teachers:(src.teachers||[]).map(function(t){ const n=normalizeTeacher(deepCopy(t)); return {name:n.name, gradeRole:n.gradeRole||'', division:n.division||'', total:0}; }),
+    exams:[], examStates:{},
+    master:deepCopy(src.master||DEFAULT_MASTER),
+    settings:deepCopy(src.settings||DEFAULT_SETTINGS)
+  };
+}
+function examStateOf(year,examId){
+  if(!year.examStates[examId]) year.examStates[examId]={prefill:{},assignments:{},confirmed:false,snapshot:null};
+  return year.examStates[examId];
+}
+function effectivePrev(year,examId){
+  const st=examStateOf(year,examId);
+  if(st.confirmed && st.snapshot) return st.snapshot.prevAtConfirm.slice();
+  return year.teachers.map(function(t){ return t.total||0; });
+}
+function examForAssign(year,exam){
+  const prev=effectivePrev(year,exam.id);
+  const e=deepCopy(exam);
+  e.teachers=year.teachers.map(function(t,i){ return {name:t.name, role:roleText(t), prev:prev[i]||0}; });
+  return e;
+}
+function cfgOf(year){ return { settings:(year&&year.settings)||DEFAULT_SETTINGS, master:(year&&year.master)||DEFAULT_MASTER }; }
+function confirmExam(year,examId){
+  const exam=year.exams.find(function(e){ return e.id===examId; }); if(!exam) return false;
+  const st=examStateOf(year,examId); if(st.confirmed) return false;
+  const e=examForAssign(year,exam);
+  const counts=computeCounts(e,st.assignments);
+  st.snapshot={ counts:counts, prevAtConfirm:year.teachers.map(function(t){ return t.total||0; }) };
+  year.teachers.forEach(function(t,i){ t.total=(t.total||0)+(counts[i]||0); });
+  st.confirmed=true; return true;
+}
+function unconfirmExam(year,examId){
+  const st=examStateOf(year,examId); if(!st.confirmed||!st.snapshot) return false;
+  year.teachers.forEach(function(t,i){ t.total=(t.total||0)-(st.snapshot.counts[i]||0); });
+  st.confirmed=false; st.snapshot=null; return true;
+}
+function deleteTeacherRemap(year,ti){
+  year.teachers.splice(ti,1);
+  Object.keys(year.examStates).forEach(function(eid){
+    const st=year.examStates[eid];
+    const np={};
+    Object.keys(st.prefill||{}).forEach(function(k){
+      const idx=parseInt(k,10); if(idx===ti) return;
+      np[String(idx>ti?idx-1:idx)]=st.prefill[k];
+    });
+    st.prefill=np;
+    Object.keys(st.assignments||{}).forEach(function(si){
+      const a=st.assignments[si]; const na={};
+      Object.keys(a).forEach(function(room){ const v=a[room]; if(v===ti) return; na[room]=v>ti?v-1:v; });
+      st.assignments[si]=na;
+    });
+    if(st.snapshot){ st.snapshot.counts.splice(ti,1); st.snapshot.prevAtConfirm.splice(ti,1); }
+  });
+}
+
+
+// ---------- Excel parsers (pure functions over 2D row arrays) ----------
+function toDateLabel(v){
+  if(v==null||v==='') return null;
+  const wd=['日','月','火','水','木','金','土'];
+  if(v instanceof Date && !isNaN(v.getTime())) return (v.getMonth()+1)+'月'+v.getDate()+'日（'+wd[v.getDay()]+'）';
+  if(typeof v==='number' && v>20000 && v<90000){
+    const d=new Date(Math.round((v-25569)*86400000));
+    return (d.getUTCMonth()+1)+'月'+d.getUTCDate()+'日（'+wd[d.getUTCDay()]+'）';
+  }
+  if(typeof v==='string'){
+    const s=v.trim();
+    const iso=s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(iso){ const d=new Date(parseInt(iso[1],10),parseInt(iso[2],10)-1,parseInt(iso[3],10)); return (d.getMonth()+1)+'月'+d.getDate()+'日（'+wd[d.getDay()]+'）'; }
+    if(/月.+日/.test(s)) return s;
+  }
+  return null;
+}
+function parseAnnualPlanRows(rows){
+  const exams=[];
+  const perMap={'①':1,'②':2,'③':3,'④':4};
+  for(let r=0;r<rows.length;r++){
+    const a=rows[r]&&rows[r][0];
+    if(!(typeof a==='string'&&/考査/.test(a)&&/学期|学年末/.test(a)&&!/年間計画/.test(a))) continue;
+    let dateRow=null, perRow=null;
+    for(let k=r+1;k<Math.min(rows.length,r+4);k++){
+      const row=rows[k]||[];
+      if(!dateRow&&row.some(function(c){ return toDateLabel(c)!==null; })) dateRow=row;
+      if(!perRow&&row.some(function(c){ return typeof c==='string'&&perMap[c]; })) perRow=row;
+    }
+    if(!dateRow||!perRow) continue;
+    const grows={};
+    for(let k=r+1;k<Math.min(rows.length,r+12);k++){
+      const row=rows[k]||[]; const label=row[0];
+      if(typeof label==='string'&&/考査/.test(label)&&/学期|学年末/.test(label)) break;
+      if(typeof label!=='string') continue;
+      const lab=label.replace(/\s/g,'');
+      if(/^１年/.test(lab)) grows.g1=row;
+      else if(/^２年/.test(lab)) grows.g2=row;
+      else if(/^３年/.test(lab)&&/文/.test(lab)) grows.g3b=row;
+      else if(/^３年/.test(lab)&&/理/.test(lab)) grows.g3r=row;
+    }
+    const slots=[]; let curDate='';
+    perRow.forEach(function(p,c){
+      if(c===0) return;
+      const per=typeof p==='string'?perMap[p]:null; if(!per) return;
+      const dl=toDateLabel(dateRow[c]);
+      if(dl) curDate=dl;
+      const subjects={};
+      ['g1','g2','g3b','g3r'].forEach(function(k){
+        const v=grows[k]?grows[k][c]:null;
+        subjects[k]=(v!=null&&String(v).trim()!=='')?String(v):null;
+      });
+      slots.push({ date:curDate, period:per, subjects:subjects });
+    });
+    if(slots.length) exams.push({ name:a.replace(/　/g,' ').trim(), slots:slots });
+  }
+  return exams;
+}
+function parseTeacherSheet(rows){
+  let dateRowIdx=-1;
+  rows.forEach(function(r,i){ if(r&&r.some(function(c){ return typeof c==='string'&&/月.+日/.test(c); })) if(dateRowIdx<0) dateRowIdx=i; });
+  if(dateRowIdx<0) return null;
+  const dateRow=rows[dateRowIdx], perRow=rows[dateRowIdx+1]||[];
+  const cols=[];
+  perRow.forEach(function(v,c){ if(typeof v==='number'&&v>=1&&v<=5) cols.push(c); });
+  if(cols.length===0) return null;
+  let curDate='';
+  const slots=cols.map(function(c){
+    if(dateRow[c]) curDate=String(dateRow[c]);
+    return { date: curDate, period: perRow[c], subjects: {} };
+  });
+  const subjKeys=['g1','g2','g3b','g3r'];
+  let subjFound=0;
+  for(let r=dateRowIdx+2;r<Math.min(rows.length,dateRowIdx+8)&&subjFound<4;r++){
+    const row=rows[r]||[];
+    const label=row[1]||row[0]||'';
+    if(typeof label==='string'&&/年/.test(label)){
+      cols.forEach(function(c,i){ const v=row[c]; slots[i].subjects[subjKeys[subjFound]]=v?String(v):null; });
+      subjFound++;
+    }
+  }
+  const teachers=[]; const prefill={};
+  const startRow=dateRowIdx+2+subjFound;
+  for(let r=startRow;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=row[0];
+    if(!name||typeof name!=='string') { if(teachers.length>0) break; else continue; }
+    if(/担当|MAX/.test(name)) break;
+    const ti=teachers.length;
+    teachers.push({ name:name, role: row[1]?String(row[1]):'', prev: 0, _row: row });
+    cols.forEach(function(c,i){ const v=row[c]; if(v&&typeof v==='string'){ const m=v==='〇'?'○':v; if(['○','休','出','授','×'].indexOf(m)>=0){ (prefill[String(ti)]=prefill[String(ti)]||{})[String(i)]=m; } } });
+  }
+  let prevCol=-1;
+  [rows[dateRowIdx],rows[dateRowIdx+1]].forEach(function(hr){ if(hr) hr.forEach(function(v,c){ if(v==='前回迄') prevCol=c; }); });
+  if(prevCol<0){ for(let r=0;r<=dateRowIdx+1;r++){ (rows[r]||[]).forEach(function(v,c){ if(v==='前回迄') prevCol=c; }); } }
+  teachers.forEach(function(t){ const v=prevCol>=0?t._row[prevCol]:null; t.prev=typeof v==='number'?v:(v!=null&&!isNaN(parseInt(v,10))?parseInt(v,10):0); delete t._row; });
+  return { slots: slots, teachers: teachers, prefill: prefill };
+}
+function parseTeacherListRows(rows){
+  const sup=parseTeacherSheet(rows);
+  if(sup&&sup.teachers&&sup.teachers.length){
+    const seen={}; const out=[];
+    sup.teachers.forEach(function(t){ if(!seen[t.name]){ seen[t.name]=true; out.push({name:t.name, gradeRole:roleToGradeRole(t.role), division:roleToDivision(t.role), prev:t.prev||0}); } });
+    return out;
+  }
+  let hi=-1, nc=-1, rc=-1, tc=-1, gc=-1, dc=-1;
+  for(let r=0;r<Math.min(rows.length,15);r++){
+    const row=rows[r]||[];
+    let n=-1, ro=-1, t=-1, g=-1, d=-1;
+    row.forEach(function(v,c){ if(typeof v!=='string') return; const s=v.trim();
+      if(/^(氏名|名前|教員名|教員)$/.test(s)) n=c;
+      else if(s==='学年') g=c;
+      else if(s==='分掌') d=c;
+      else if(/分掌|担任|役職/.test(s)) ro=c;
+      else if(/累計|前回迄|前回まで/.test(s)) t=c;
+    });
+    if(n>=0){ hi=r; nc=n; rc=ro; tc=t; gc=g; dc=d; break; }
+  }
+  if(hi<0) return [];
+  const seen={}; const out=[];
+  for(let r=hi+1;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=row[nc];
+    if(!name||typeof name!=='string') continue;
+    const nm=name.trim(); if(!nm||seen[nm]) continue;
+    seen[nm]=true;
+    let prev=0;
+    if(tc>=0){ const v=row[tc]; if(typeof v==='number') prev=v; else if(v!=null&&!isNaN(parseInt(v,10))) prev=parseInt(v,10); }
+    const roleStr=rc>=0&&row[rc]!=null?String(row[rc]):'';
+    out.push({ name:nm, gradeRole: gc>=0&&row[gc]!=null?roleToGradeRole(row[gc]):roleToGradeRole(roleStr), division: dc>=0&&row[dc]!=null?roleToDivision(row[dc]):roleToDivision(roleStr), prev:prev });
+  }
+  return out;
+}
+function normalizeRoomName(raw){
+  if(raw==null) return '';
+  let s=fw2hw(String(raw)).trim().replace(/\s/g,'');
+  if(s==='各HR') return '各HR';
+  s=s.replace(/HR$/,'');
+  return s;
+}
+function parseRoomMasterRows(rows){
+  let hi=-1, sc=-1, rc=-1, cc=-1;
+  for(let r=0;r<Math.min(rows.length,15);r++){
+    const row=rows[r]||[];
+    let s=-1, rm=-1, cl=-1;
+    row.forEach(function(v,c){ if(typeof v!=='string') return; const t=v.trim();
+      if(t==='科目') s=c;
+      else if(/実施教室/.test(t)) rm=c;
+      else if(/展開クラス/.test(t)) cl=c;
+    });
+    if(s>=0&&rm>=0){ hi=r; sc=s; rc=rm; cc=cl; break; }
+  }
+  const agg={}; const order=[];
+  function addEntry(subj,roomRaw,cls){
+    if(!agg[subj]){ agg[subj]={rooms:[], classes:new Set()}; order.push(subj); }
+    if(cls!=null&&String(cls).trim()!=='') agg[subj].classes.add(String(cls).trim());
+    if(roomRaw!=null&&String(roomRaw).trim()!=='') agg[subj].rooms.push(String(roomRaw));
+  }
+  if(hi>=0){
+    let curSubj=null, curRoom=null;
+    for(let r=hi+1;r<rows.length;r++){
+      const row=rows[r]||[];
+      const anyVal=row.some(function(v){ return v!=null&&String(v).trim()!==''; });
+      if(!anyVal) continue;
+      const sv=row[sc];
+      if(sv!=null&&String(sv).trim()!=='') curSubj=String(sv).trim();
+      const rv=row[rc];
+      if(rv!=null&&String(rv).trim()!=='') curRoom=String(rv);
+      if(!curSubj) continue;
+      addEntry(curSubj, curRoom, cc>=0?row[cc]:null);
+    }
+  } else {
+    for(let r=0;r<rows.length;r++){
+      const row=rows[r]||[];
+      const sv=row[0], rv=row[1];
+      if(typeof sv==='string'&&sv.trim()&&rv!=null&&String(rv).trim()&&!/科目/.test(sv)) addEntry(sv.trim(), String(rv), null);
+    }
+  }
+  const out=[];
+  order.forEach(function(subj){
+    const a=agg[subj];
+    const rooms=[];
+    a.rooms.forEach(function(raw){
+      String(raw).split(/[,、\/]/).map(function(x){ return x.trim(); }).filter(Boolean).forEach(function(piece){
+        const n=normalizeRoomName(piece);
+        if(!n) return;
+        if(n==='各HR'){
+          const exp=/（文）/.test(subj)?['3-2','3-3','3-4']:HR4;
+          exp.forEach(function(x){ if(rooms.indexOf(x)<0) rooms.push(x); });
+        } else if(rooms.indexOf(n)<0) rooms.push(n);
+      });
+    });
+    let rowAttr='any';
+    if(/（文）/.test(subj)) rowAttr='b';
+    else if(/（理）/.test(subj)) rowAttr='r';
+    else if(['化学','生物','物理'].indexOf(fw2hw(subj))>=0) rowAttr='r';
+    else if(a.classes.size>0){
+      let all31=true; a.classes.forEach(function(c){ if(c!=='3-1') all31=false; });
+      if(all31) rowAttr='r';
+    }
+    out.push({ pattern:fw2hw(subj), rooms:rooms, row:rowAttr });
+  });
+  const extra=[];
+  out.forEach(function(e){
+    const stripped=e.pattern.replace(/（文）|（理）/g,'');
+    if(stripped!==e.pattern
+      && !out.some(function(x){ return x.pattern===stripped&&x.row===e.row; })
+      && !extra.some(function(x){ return x.pattern===stripped&&x.row===e.row; })){
+      extra.push({ pattern:stripped, rooms:e.rooms.slice(), row:e.row });
+    }
+  });
+  return out.concat(extra);
+}
+
+</script>
+
+<script id="ui">
+"use strict";
+const LS_KEY='examSupervisorV10';
+const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
+const $=function(id){ return document.getElementById(id); };
+function freshState(){
+  const years={}; years['2026']=buildInitialYear(INITIAL.exams);
+  return { currentYear:'2026', currentExamId:(years['2026'].exams[0]?years['2026'].exams[0].id:null), years:years };
+}
+function loadState(){
+  try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s9=JSON.parse(localStorage.getItem('examSupervisorV9')); if(s9&&s9.years&&s9.years[s9.currentYear]) return normalizeState(s9); }catch(e){}
+  try{ const s8=JSON.parse(localStorage.getItem('examSupervisorV8')); if(s8&&s8.years&&s8.years[s8.currentYear]) return normalizeState(s8); }catch(e){}
+  try{ const s7=JSON.parse(localStorage.getItem('examSupervisorV7')); if(s7&&s7.years&&s7.years[s7.currentYear]) return normalizeState(s7); }catch(e){}
+  try{ const s6=JSON.parse(localStorage.getItem('examSupervisorV6')); if(s6&&s6.years&&s6.years[s6.currentYear]) return normalizeState(s6); }catch(e){}
+  try{ const s5=JSON.parse(localStorage.getItem('examSupervisorV5')); if(s5&&s5.years&&s5.years[s5.currentYear]) return normalizeState(s5); }catch(e){}
+  try{ const s4=JSON.parse(localStorage.getItem('examSupervisorV4')); if(s4&&s4.years&&s4.years[s4.currentYear]) return normalizeState(s4); }catch(e){}
+  try{ const s3=JSON.parse(localStorage.getItem('examSupervisorV3')); if(s3&&s3.years&&s3.years[s3.currentYear]) return normalizeState(s3); }catch(e){}
+  try{ const s2=JSON.parse(localStorage.getItem('examSupervisorV2')); if(s2&&s2.years&&s2.years[s2.currentYear]) return normalizeState(s2); }catch(e){}
+  return freshState();
+}
+function saveState(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+let state=loadState();
+let loggedIn=false;
+let currentView='home';
+const BASIC_VIEWS=['plan','rooms','teachers','settings','year'];
+let examStep=1;
+function curYear(){ return state.years[state.currentYear]; }
+function curExam(){
+  const y=curYear(); if(!y.exams.length) return null;
+  return y.exams.find(function(e){ return e.id===state.currentExamId; })||y.exams[0];
+}
+function slotLabel(slot){ return slot.date+' '+slot.period+'限'; }
+function subjText(slot){
+  const s=slot.subjects||{}; const parts=[];
+  if(s.g1) parts.push('1年:'+s.g1.replace(/\n/g,'/'));
+  if(s.g2) parts.push('2年:'+s.g2.replace(/\n/g,'/'));
+  if(s.g3b) parts.push('3年文:'+s.g3b.replace(/\n/g,'/'));
+  if(s.g3r) parts.push('3年理:'+s.g3r.replace(/\n/g,'/'));
+  return parts.join('　');
+}
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+// ---------- render ----------
+function render(){
+  $('yearBadge').textContent=state.currentYear+'年度';
+  document.querySelectorAll('.view').forEach(function(v){ v.style.display='none'; v.classList.remove('printtarget'); });
+  const view=$('view-'+currentView); if(view){ view.style.display='block'; view.classList.add('printtarget'); }
+  if(currentView==='exam') renderExam();
+  else if(currentView==='year') renderYearAdmin();
+  else if(currentView==='home') {}
+  else if(currentView==='plan') renderPlan();
+  else if(currentView==='rooms') renderRooms();
+  else if(currentView==='teachers') renderTeachers();
+  else if(currentView==='settings') renderSettings();
+}
+function renderExamSteps(exam,st){
+  const el=$('examSteps'); if(!el) return;
+  if(!exam){ el.innerHTML=''; return; }
+  const steps=['考査を選ぶ','○・休などを入力','自動割当','一覧で確認','確定'];
+  const doneAll=!!(st&&st.confirmed);
+  el.innerHTML=steps.map(function(t,i){ const n=i+1; const cls=doneAll?'done':(n<examStep?'done':(n===examStep?'cur':'')); return '<button type="button" class="step '+cls+'" data-go="'+n+'"><span class="stepnum">'+n+'</span>'+t+'</button>'; }).join('<span class="steparrow">→</span>');
+}
+function examOutline(exam){
+  if(!exam.slots.length) return 'コマがまだ登録されていません。「基本設定」の年間計画で時間割を登録してください。';
+  const cfg=cfgOf(curYear());
+  let rooms=0; exam.slots.forEach(function(sl){ rooms+=roomsForSlot(sl,cfg).rooms.length; });
+  return '日程：'+exam.slots[0].date+' 〜 '+exam.slots[exam.slots.length-1].date+'／全'+exam.slots.length+'コマ／実施教室 合計'+rooms+'室';
+}
+function renderAssignSummary(y,exam,st){
+  const el=$('assignSummary'); if(!el) return;
+  const eObj=examForAssign(y,exam);
+  if(!Object.keys(st.assignments).length){ el.innerHTML='<p class="small">まだ割り当てていません。「自動割当」を押してください。</p>'; return; }
+  const counts=computeCounts(eObj, st.assignments);
+  const w=computeWarnings(eObj, st.assignments, cfgOf(y));
+  el.innerHTML='<p>割当済みです。今回の監督数： <strong>'+Math.min.apply(null,counts)+'〜'+Math.max.apply(null,counts)+'回</strong>'+(w.length?'／ ⚠ 空欄 '+w.length+'件（次の画面で確認できます）':'／ 空欄なし')+'</p>';
+}
+function renderExam(){
+  const y=curYear(), exam=curExam();
+  const sel=$('examSelect'); sel.innerHTML='';
+  y.exams.forEach(function(e){ const o=document.createElement('option'); o.value=e.id; o.textContent=e.name; if(exam&&e.id===exam.id) o.selected=true; sel.appendChild(o); });
+  const warn=$('warnArea');
+  renderExamSteps(null,null);
+  if(!exam){ $('noExamMsg').innerHTML='<p class="small">考査がありません。「基本設定」の年間計画で考査を追加してください。</p>'; $('examPanels').style.display='none'; warn.innerHTML=''; return; }
+  $('noExamMsg').innerHTML=''; $('examPanels').style.display='';
+  state.currentExamId=exam.id;
+  const st=examStateOf(y,exam.id);
+  renderExamSteps(exam,st);
+  const locked=!!st.confirmed;
+  $('examStatus').textContent=locked?'確定済み（ロック中）':'未確定';
+  $('examStatus').className='badge '+(locked?'locked':'open');
+  $('btnConfirm').textContent=locked?'確定解除':'確定';
+  ['btnShuffle','btnClear'].forEach(function(id){ $(id).disabled=locked; });
+  $('fileInput').disabled=locked;
+  for(let n=1;n<=5;n++){ const pn=$('estep'+n); if(pn) pn.style.display=examStep===n?'block':'none'; }
+  $('examOutline').textContent=examOutline(exam);
+  $('confirmInfo').textContent=locked?'確定済みです（ロック中）。内容を変更するには「確定解除」を押してください。':'まだ確定していません。内容を確認してから「確定」を押してください。';
+  renderWarnings(y,exam,st);
+  renderTeacherTable(y,exam,st);
+  renderTeacherTable(y,exam,st,'teacherTable2','confirm');
+  renderAssignSummary(y,exam,st);
+}
+function renderWarnings(y,exam,st){
+  const area=$('warnArea');
+  const w=computeWarnings(examForAssign(y,exam), st.assignments, cfgOf(y));
+  const hasAny=Object.keys(st.assignments).length>0;
+  if(!hasAny||w.length===0){ area.innerHTML=''; return; }
+  area.innerHTML='<div class="warn"><h3>⚠ 割り当て不足 '+w.length+'件（人が足りないため空欄）</h3>'+
+    w.map(function(x){ return '<div>'+slotLabel(exam.slots[x.si])+'：'+x.room+'</div>'; }).join('')+'</div>';
+}
+function renderTeacherTable(y,exam,st,tableId,mode){
+  tableId=tableId||'teacherTable'; mode=mode||'mark';
+  const eObj=examForAssign(y,exam), teachers=eObj.teachers;
+  const counts=computeCounts(eObj, st.assignments);
+  const label={};
+  Object.keys(st.assignments).forEach(function(si){
+    const a=st.assignments[si];
+    Object.keys(a).forEach(function(k){ if(typeof a[k]==='number'){ (label[a[k]]=label[a[k]]||{})[si]=k; } });
+  });
+  let h='<tr><th class="name">教員</th><th>役職</th>';
+  exam.slots.forEach(function(s){ h+='<th>'+esc(s.date)+'<br>'+s.period+'限</th>'; });
+  h+='<th>今回</th><th>累計</th><th>合計</th></tr>';
+  teachers.forEach(function(t,ti){
+    h+='<tr><td class="name">'+esc(t.name)+'</td><td>'+esc(t.role||'')+'</td>';
+    exam.slots.forEach(function(s,si){
+      const mk=markAt(st.prefill,ti,si);
+      if(mk){ h+='<td class="prefill" data-ti="'+ti+'" data-si="'+si+'">'+esc(mk)+'</td>'; }
+      else if(label[ti]&&label[ti][si]!==undefined){
+        const v=label[ti][si];
+        h+='<td class="'+(STANDBY_KEYS.indexOf(v)>=0?'standby':'assign')+'" data-ti="'+ti+'" data-si="'+si+'">'+esc(v)+'</td>';
+      } else { h+='<td class="empty" data-ti="'+ti+'" data-si="'+si+'"></td>'; }
+    });
+    h+='<td>'+counts[ti]+'</td><td>'+t.prev+'</td><td>'+(t.prev+counts[ti])+'</td></tr>';
+  });
+  const tbl=$(tableId); tbl.innerHTML=h;
+  tbl.querySelectorAll('td[data-ti]').forEach(function(td){
+    td.addEventListener('click',function(){
+      const ti=parseInt(td.dataset.ti,10), si=parseInt(td.dataset.si,10);
+      if(mode==='confirm'){
+        const a=(st.assignments&&st.assignments[si])||{};
+        let room=null; Object.keys(a).forEach(function(k){ if(a[k]===ti) room=k; });
+        if(room){ openSupMenu(si,room); return; }
+      }
+      openMarkMenu(ti,si);
+    });
+  });
+}
+function subjInputVal(v){ return (v||'').replace(/\n/g,' / '); }
+function subjParseVal(v){ const parts=String(v||'').split('/').map(function(x){ return x.trim(); }).filter(Boolean); return parts.length?parts.join('\n'):null; }
+function renderPlan(){
+  const y=curYear(); const area=$('planArea'); let h='';
+  y.exams.forEach(function(exam){
+    const st=examStateOf(y,exam.id);
+    h+='<div class="slotblock"><h3><input type="text" class="exam-name" data-exam="'+exam.id+'" value="'+esc(exam.name)+'"> <span class="badge '+(st.confirmed?'locked':'open')+'">'+(st.confirmed?'確定済み':'未確定')+'</span> <button class="danger exam-del" data-exam="'+exam.id+'">この考査を削除</button></h3>';
+    h+='<div class="scroll"><table><tr><th>日付</th><th>時限</th><th>1年 科目</th><th>2年 科目</th><th>3年（文）科目</th><th>3年（理）科目</th><th></th></tr>';
+    exam.slots.forEach(function(s,si){
+      h+='<tr><td><input type="text" class="slot-in" data-exam="'+exam.id+'" data-si="'+si+'" data-f="date" value="'+esc(s.date||'')+'" size="12"></td>'
+        +'<td><input type="number" class="slot-in" data-exam="'+exam.id+'" data-si="'+si+'" data-f="period" value="'+s.period+'" style="width:52px"></td>'
+        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g1" value="'+esc(subjInputVal(s.subjects&&s.subjects.g1))+'"></td>'
+        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g2" value="'+esc(subjInputVal(s.subjects&&s.subjects.g2))+'"></td>'
+        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g3b" value="'+esc(subjInputVal(s.subjects&&s.subjects.g3b))+'"></td>'
+        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g3r" value="'+esc(subjInputVal(s.subjects&&s.subjects.g3r))+'"></td>'
+        +'<td><button class="danger slot-del" data-exam="'+exam.id+'" data-si="'+si+'">削除</button></td></tr>';
+    });
+    h+='</table></div><p><button class="slot-add" data-exam="'+exam.id+'">コマを追加</button> <span class="small">科目は「 / 」区切りで複数入力できます。コマの追加・削除をすると、その考査の割当はクリアされます（事前記入は可能な範囲で引き継ぎます）。</span></p></div>';
+  });
+  if(!y.exams.length) h='<p class="small">考査がありません。下から追加するか、年間計画Excelを取り込んでください。</p>';
+  area.innerHTML=h;
+  area.querySelectorAll('.exam-name').forEach(function(inp){
+    inp.addEventListener('change',function(){ const ex=y.exams.find(function(e){ return e.id===inp.dataset.exam; }); if(ex){ ex.name=inp.value; saveState(); render(); } });
+  });
+  area.querySelectorAll('.slot-in').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      const ex=y.exams.find(function(e){ return e.id===inp.dataset.exam; }); if(!ex) return;
+      const s=ex.slots[parseInt(inp.dataset.si,10)]; if(!s) return;
+      const f=inp.dataset.f;
+      if(f==='date') s.date=inp.value;
+      else if(f==='period') s.period=parseInt(inp.value,10)||1;
+      else { if(!s.subjects) s.subjects={}; s.subjects[f]=subjParseVal(inp.value); }
+      saveState(); render();
+    });
+  });
+  area.querySelectorAll('.slot-add').forEach(function(b){
+    b.addEventListener('click',function(){
+      const ex=y.exams.find(function(e){ return e.id===b.dataset.exam; }); if(!ex) return;
+      const st=examStateOf(y,ex.id); if(st.confirmed){ alert('確定済みの考査です。先に確定解除してください。'); return; }
+      const last=ex.slots[ex.slots.length-1];
+      ex.slots.push({ date:last?last.date:'', period:last?(last.period||1):1, subjects:{} });
+      st.assignments={}; saveState(); render();
+    });
+  });
+  area.querySelectorAll('.slot-del').forEach(function(b){
+    b.addEventListener('click',function(){
+      const ex=y.exams.find(function(e){ return e.id===b.dataset.exam; }); if(!ex) return;
+      const st=examStateOf(y,ex.id); if(st.confirmed){ alert('確定済みの考査です。先に確定解除してください。'); return; }
+      const si=parseInt(b.dataset.si,10);
+      if(!confirm('このコマを削除しますか？（割当はクリアされます）')) return;
+      ex.slots.splice(si,1);
+      const np={};
+      Object.keys(st.prefill||{}).forEach(function(ti){
+        const nm={};
+        Object.keys(st.prefill[ti]).forEach(function(k){ const idx=parseInt(k,10); if(idx===si) return; nm[String(idx>si?idx-1:idx)]=st.prefill[ti][k]; });
+        if(Object.keys(nm).length) np[ti]=nm;
+      });
+      st.prefill=np; st.assignments={}; saveState(); render();
+    });
+  });
+  area.querySelectorAll('.exam-del').forEach(function(b){
+    b.addEventListener('click',function(){
+      const ex=y.exams.find(function(e){ return e.id===b.dataset.exam; }); if(!ex) return;
+      if(!confirm('考査「'+ex.name+'」を削除しますか？')) return;
+      const st=examStateOf(y,ex.id);
+      if(st.confirmed) unconfirmExam(y,ex.id);
+      y.exams=y.exams.filter(function(e){ return e.id!==ex.id; });
+      delete y.examStates[ex.id];
+      if(state.currentExamId===ex.id) state.currentExamId=y.exams.length?y.exams[0].id:null;
+      saveState(); render();
+    });
+  });
+}
+// ---------- rooms master ----------
+function renderRooms(){
+  const y=curYear();
+  const unreg=unregisteredSubjects(y.exams, y.master);
+  $('unregArea').innerHTML=unreg.length
+    ? '<div class="warn"><h3>⚠ 教室割が未登録の3年科目 '+unreg.length+'件（3-1〜3-4で仮に割り当てます）</h3>'+unreg.map(function(t){ return '<div>'+esc(t)+'</div>'; }).join('')+'</div>'
+    : '<p class="small">未登録の科目はありません。</p>';
+  let h='<tr><th>科目（部分一致）</th><th>実施教室（カンマ区切り）</th><th>対象</th><th></th></tr>';
+  y.master.forEach(function(m,mi){
+    h+='<tr><td><input type="text" class="m-in" data-mi="'+mi+'" data-f="pattern" value="'+esc(m.pattern)+'"></td>'
+      +'<td><input type="text" class="m-in" data-mi="'+mi+'" data-f="rooms" value="'+esc((m.rooms||[]).join(','))+'" size="28"></td>'
+      +'<td><select class="m-in" data-mi="'+mi+'" data-f="row"><option value="any"'+(m.row==='any'?' selected':'')+'>文・理共通</option><option value="b"'+(m.row==='b'?' selected':'')+'>文のみ</option><option value="r"'+(m.row==='r'?' selected':'')+'>理のみ</option></select></td>'
+      +'<td><button class="danger m-del" data-mi="'+mi+'">削除</button></td></tr>';
+  });
+  $('masterTable').innerHTML=h;
+  $('masterTable').querySelectorAll('.m-in').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      const m=y.master[parseInt(inp.dataset.mi,10)]; if(!m) return;
+      const f=inp.dataset.f;
+      if(f==='pattern') m.pattern=inp.value.trim();
+      else if(f==='rooms') m.rooms=inp.value.split(/[,、]/).map(function(x){ return x.trim(); }).filter(Boolean);
+      else if(f==='row') m.row=inp.value;
+      saveState(); render();
+    });
+  });
+  $('masterTable').querySelectorAll('.m-del').forEach(function(b){
+    b.addEventListener('click',function(){ y.master.splice(parseInt(b.dataset.mi,10),1); saveState(); render(); });
+  });
+}
+// ---------- teachers ----------
+function renderTeachers(){
+  const y=curYear();
+  function opts(list,cur){ return '<option value=""></option>'+list.map(function(o){ return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o)+'</option>'; }).join(''); }
+  let h='<tr><th class="name">氏名</th><th>学年</th><th>分掌</th><th></th></tr>';
+  y.teachers.forEach(function(t,ti){
+    h+='<tr><td><input type="text" class="t-in" data-ti="'+ti+'" data-f="name" value="'+esc(t.name)+'"></td>'
+      +'<td><select class="t-sel" data-ti="'+ti+'" data-f="gradeRole">'+opts(GRADE_ROLES,t.gradeRole||'')+'</select></td>'
+      +'<td><select class="t-sel" data-ti="'+ti+'" data-f="division">'+opts(DIVISIONS,t.division||'')+'</select></td>'
+      +'<td><button class="danger t-del" data-ti="'+ti+'">削除</button></td></tr>';
+  });
+  $('teacherMasterTable').innerHTML=h;
+  $('teacherMasterTable').querySelectorAll('.t-in').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      const t=y.teachers[parseInt(inp.dataset.ti,10)]; if(!t) return;
+      t.name=inp.value; saveState(); render();
+    });
+  });
+  $('teacherMasterTable').querySelectorAll('.t-sel').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      const t=y.teachers[parseInt(sel.dataset.ti,10)]; if(!t) return;
+      t[sel.dataset.f]=sel.value;
+      if(sel.dataset.f==='gradeRole'&&LEADER_DIVISION[sel.value]){ t.division=LEADER_DIVISION[sel.value]; saveState(); render(); return; }
+      saveState();
+    });
+  });
+  $('teacherMasterTable').querySelectorAll('.t-del').forEach(function(b){
+    b.addEventListener('click',function(){
+      const ti=parseInt(b.dataset.ti,10);
+      if(!confirm(y.teachers[ti].name+' を削除しますか？（各考査の割当・事前記入も連動して直します）')) return;
+      deleteTeacherRemap(y,ti); saveState(); render();
+    });
+  });
+  $('teacherSum').textContent='教員 '+y.teachers.length+'名';
+}
+// ---------- year admin ----------
+function renderYearAdmin(){
+  const box=$('yearAdminList'); box.innerHTML='';
+  Object.keys(state.years).forEach(function(yr){
+    const b=document.createElement('button'); b.className='opt'; b.style.display='block'; b.style.margin='4px 0';
+    b.textContent=yr+'年度'+(yr===state.currentYear?'（現在）':'');
+    b.addEventListener('click',function(){ state.currentYear=yr; const y=curYear(); state.currentExamId=y.exams.length?y.exams[0].id:null; saveState(); render(); });
+    box.appendChild(b);
+  });
+}
+// ---------- settings ----------
+function renderSettings(){
+  const y=curYear(), s=y.settings;
+  $('setG1').value=(s.g1rooms||[]).join(',');
+  $('setG2').value=(s.g2rooms||[]).join(',');
+  $('setTimeP1').value=(s.times&&s.times.p1)||'';
+  $('setTimeP2').value=(s.times&&s.times.p2)||'';
+  $('setTimeP3').value=(s.times&&s.times.p3)||'';
+  $('setTimeP4').value=(s.times&&s.times.p4)||'';
+}
+// ---------- modal (mark / supervisor) ----------
+function openModal(title,opts){
+  $('modalTitle').textContent=title; const box=$('modalOpts'); box.innerHTML='';
+  opts.forEach(function(o){
+    const b=document.createElement('button'); b.className='opt'; b.textContent=o.label;
+    b.addEventListener('click',function(){ closeModal(); o.fn(); });
+    box.appendChild(b);
+  });
+  $('modal').classList.add('open');
+}
+function closeModal(){ $('modal').classList.remove('open'); }
+$('modalCancel').addEventListener('click',closeModal);
+function guardLocked(){
+  const y=curYear(), exam=curExam(); if(!exam) return true;
+  if(examStateOf(y,exam.id).confirmed){ alert('確定済みの考査です。変更するには先に「確定解除」してください。'); return true; }
+  return false;
+}
+function removeAssignmentOf(st,si,ti){
+  const a=st.assignments[si]; if(!a) return;
+  Object.keys(a).forEach(function(k){ if(a[k]===ti) delete a[k]; });
+}
+function openMarkMenu(ti,si){
+  if(guardLocked()) return;
+  const y=curYear(), exam=curExam(), st=examStateOf(y,exam.id), eObj=examForAssign(y,exam);
+  const cur=markAt(st.prefill,ti,si);
+  const opts=['○','出','休','授','×'].map(function(m){
+    return { label:(cur===m?'● ':'')+m+' にする', fn:function(){
+      if(!st.prefill[String(ti)]) st.prefill[String(ti)]={};
+      st.prefill[String(ti)][String(si)]=m;
+      removeAssignmentOf(st,si,ti);
+      saveState(); render();
+    }};
+  });
+  if(cur) opts.push({ label:'事前記入を消す（空欄に戻す）', fn:function(){ delete st.prefill[String(ti)][String(si)]; saveState(); render(); } });
+  const a=st.assignments[si]||{};
+  const assignedKey=Object.keys(a).find(function(k){ return a[k]===ti; });
+  if(assignedKey) opts.push({ label:'このコマの割当（'+assignedKey+'）を外す', fn:function(){ delete st.assignments[si][assignedKey]; saveState(); render(); } });
+  openModal(eObj.teachers[ti].name+'／'+slotLabel(exam.slots[si]), opts);
+}
+function openSupMenu(si,room){
+  if(guardLocked()) return;
+  const y=curYear(), exam=curExam(), st=examStateOf(y,exam.id), eObj=examForAssign(y,exam);
+  const a=st.assignments[si]||{};
+  const used=new Set(Object.values(a));
+  const opts=[];
+  eObj.teachers.forEach(function(t,ti){
+    if(markAt(st.prefill,ti,si)) return;
+    if(used.has(ti)&&a[room]!==ti) return;
+    opts.push({ label:t.name+(a[room]===ti?'（現在）':''), fn:function(){
+      if(!st.assignments[si]) st.assignments[si]={};
+      st.assignments[si][room]=ti; saveState(); render();
+    }});
+  });
+  if(typeof a[room]==='number') opts.push({ label:'空欄にする', fn:function(){ delete st.assignments[si][room]; saveState(); render(); } });
+  openModal(slotLabel(exam.slots[si])+'／'+room+' の監督者', opts);
+}
+// ---------- actions ----------
+function openAssignModal(){
+  const y=curYear(), exam=curExam(); if(!exam) return;
+  const st=examStateOf(y,exam.id);
+  if(st.confirmed){ alert('確定済みの考査です。変更するには先に「確定解除」してください。'); return; }
+  openModal('ステップ②の入力が終わりました',[
+    {label:'自動割当を開始する', fn:function(){ doAuto(); }},
+    {label:'ステップ②に戻る', fn:function(){ examStep=2; render(); }},
+    {label:'ステップ①に戻る', fn:function(){ examStep=1; render(); }}
+  ]);
+}
+function doAuto(){
+  if(guardLocked()) return;
+  const y=curYear(), exam=curExam(); if(!exam) return;
+  const st=examStateOf(y,exam.id);
+  const res=autoAssign(examForAssign(y,exam), st.prefill, Math.random, cfgOf(y));
+  st.assignments=res.assignments; examStep=4; saveState(); render();
+}
+$('btnShuffle').addEventListener('click',doAuto);
+$('btnStep2Next').addEventListener('click',openAssignModal);
+$('btnClear').addEventListener('click',function(){ if(guardLocked()) return; const y=curYear(), exam=curExam(); if(!exam) return; examStateOf(y,exam.id).assignments={}; saveState(); render(); });
+$('btnConfirm').addEventListener('click',function(){
+  const y=curYear(), exam=curExam(); if(!exam) return;
+  const st=examStateOf(y,exam.id);
+  if(st.confirmed){ if(confirm('確定を解除しますか？（年度累計から今回分を引きます）')){ unconfirmExam(y,exam.id); saveState(); render(); } }
+  else { if(confirm('この考査を確定しますか？（今回の監督数が年度累計に加算され、表はロックされます）')){ confirmExam(y,exam.id); saveState(); render(); } }
+});
+$('examSelect').addEventListener('change',function(){ state.currentExamId=this.value; saveState(); render(); });
+document.querySelectorAll('button[data-basic]').forEach(function(b){ b.addEventListener('click',function(){ currentView=b.dataset.basic; render(); }); });
+  document.querySelectorAll('.backbasic').forEach(function(b){ b.addEventListener('click',function(){ currentView='basic'; render(); }); });
+$('btnHome').addEventListener('click',function(){ currentView='home'; render(); });
+$('cardSettings').addEventListener('click',function(){ currentView='basic'; render(); });
+$('cardExam').addEventListener('click',function(){
+  const y=curYear(), exam=curExam();
+  if(exam){ const st=examStateOf(y,exam.id); examStep=st.confirmed?5:(Object.keys(st.assignments||{}).length?4:1); } else examStep=1;
+  currentView='exam'; render();
+});
+document.querySelectorAll('[data-go]').forEach(function(b){ b.addEventListener('click',function(){ examStep=parseInt(b.dataset.go,10)||1; render(); }); });
+$('examSteps').addEventListener('click',function(e){ const b=e.target&&e.target.closest?e.target.closest('[data-go]'):null; if(b){ const g=parseInt(b.dataset.go,10)||1; if(g===3){ openAssignModal(); return; } examStep=g; render(); } });
+$('btnPrint').addEventListener('click',function(){ window.print(); });
+$('btnExcel').addEventListener('click',exportExcel);
+$('btnAddExam').addEventListener('click',function(){
+  const y=curYear(); const name=$('newExamName').value.trim(); if(!name){ alert('考査名を入力してください'); return; }
+  const id='exam-'+Date.now();
+  y.exams.push({ id:id, name:name, slots:[] }); sortExamList(y.exams);
+  y.examStates[id]={prefill:{},assignments:{},confirmed:false,snapshot:null};
+  state.currentExamId=id; $('newExamName').value=''; saveState(); render();
+});
+$('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
+$('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+['setG1','setG2'].forEach(function(id){
+  $(id).addEventListener('change',function(){
+    const y=curYear();
+    const v=this.value.split(/[,、]/).map(function(x){ return x.trim(); }).filter(Boolean);
+    if(id==='setG1') y.settings.g1rooms=v; else y.settings.g2rooms=v;
+    saveState(); render();
+  });
+});
+[['setTimeP1','p1'],['setTimeP2','p2'],['setTimeP3','p3'],['setTimeP4','p4']].forEach(function(pair){
+  $(pair[0]).addEventListener('change',function(){ curYear().settings.times[pair[1]]=this.value; saveState(); });
+});
+function teacherTableAOA(y,exam,st){
+  const eObj=examForAssign(y,exam), teachers=eObj.teachers;
+  const counts=computeCounts(eObj, st.assignments);
+  const label={};
+  Object.keys(st.assignments).forEach(function(si){ const a=st.assignments[si]; Object.keys(a).forEach(function(k){ if(typeof a[k]==='number'){ (label[a[k]]=label[a[k]]||{})[si]=k; } }); });
+  const aoa=[['教員','役職'].concat(exam.slots.map(function(s){ return s.date+' '+s.period+'限'; })).concat(['今回','累計','合計'])];
+  teachers.forEach(function(t,ti){
+    const row=[t.name,t.role||''];
+    exam.slots.forEach(function(s,si){ row.push(markAt(st.prefill,ti,si)||(label[ti]&&label[ti][si])||''); });
+    row.push(counts[ti],t.prev,t.prev+counts[ti]); aoa.push(row);
+  });
+  return aoa;
+}
+function classTableAOA(y,exam,st){
+  const eObj=examForAssign(y,exam), teachers=eObj.teachers, cfg=cfgOf(y);
+  const aoa=[['日時','時限','教室','監督者','科目']];
+  exam.slots.forEach(function(slot,si){
+    const info=roomsForSlot(slot,cfg); const a=st.assignments[si]||{};
+    if(info.rooms.length===0) return;
+    info.rooms.concat(STANDBY_KEYS).forEach(function(room){
+      aoa.push([slot.date,slot.period,room, typeof a[room]==='number'?teachers[a[room]].name:'', subjText(slot)]);
+    });
+  });
+  return aoa;
+}
+function exportExcel(){
+  const y=curYear(), exam=curExam(); if(!exam) return;
+  const st=examStateOf(y,exam.id);
+  const aoa1=teacherTableAOA(y,exam,st), aoa2=classTableAOA(y,exam,st);
+  const fname='監督表_'+state.currentYear+'年度_'+exam.name.replace(/\s/g,'');
+  if(window.XLSX){
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa1), '教員別考査監督表');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa2), '教室別時間割');
+    XLSX.writeFile(wb, fname+'.xlsx');
+  } else {
+    const tbl=function(aoa){ return '<table>'+aoa.map(function(r){ return '<tr>'+r.map(function(c){ return '<td>'+esc(c)+'</td>'; }).join('')+'</tr>'; }).join('')+'</table>'; };
+    const html='<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>'+tbl(aoa1)+'<br>'+tbl(aoa2)+'</body></html>';
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['\ufeff'+html],{type:'application/vnd.ms-excel'}));
+    a.download=fname+'.xls'; a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+  }
+}
+// ---------- upload helpers ----------
+function readWorkbookRows(file, preferredSheet, cb){
+  if(!window.XLSX){ cb(null,'SheetJSが読み込めていないため、Excel読込はできません（ネット接続時に再試行してください）。'); return; }
+  const reader=new FileReader();
+  reader.onload=function(){
+    try{
+      const wb=XLSX.read(new Uint8Array(reader.result),{type:'array',cellDates:true});
+      const sheetName=(preferredSheet&&wb.SheetNames.indexOf(preferredSheet)>=0)?preferredSheet:wb.SheetNames[0];
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:null});
+      cb(rows,null);
+    }catch(e){ cb(null,'読み込みに失敗しました：'+e.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+// ---------- upload: teacher sheet (per exam, prefill) ----------
+$('fileInput').addEventListener('change',function(){
+  const f=this.files[0]; if(!f) return;
+  const msg=$('uploadMsg');
+  readWorkbookRows(f,'教員別考査監督表',function(rows,err){
+    if(err){ msg.textContent=err; return; }
+    const parsed=parseTeacherSheet(rows);
+    if(!parsed||parsed.teachers.length===0){ msg.textContent='読み取れませんでした（教員別表の形式を確認してください）。'; return; }
+    const y=curYear();
+    const idxMap={};
+    parsed.teachers.forEach(function(t,ti){
+      let yi=y.teachers.findIndex(function(x){ return x.name===t.name; });
+      if(yi<0){ y.teachers.push({name:t.name, gradeRole:roleToGradeRole(t.role), division:roleToDivision(t.role), total:t.prev||0}); yi=y.teachers.length-1; }
+      idxMap[ti]=yi;
+    });
+    const prefill={};
+    Object.keys(parsed.prefill).forEach(function(ti){
+      const yi=idxMap[parseInt(ti,10)]; const nm={};
+      Object.keys(parsed.prefill[ti]).forEach(function(si){ nm[si]=parsed.prefill[ti][si]; });
+      prefill[String(yi)]=nm;
+    });
+    const id='upload-'+Date.now();
+    y.exams.push({ id:id, name:'読込：'+f.name.replace(/\.xlsx?$/,''), slots:parsed.slots }); sortExamList(y.exams);
+    y.examStates[id]={prefill:prefill,assignments:{},confirmed:false,snapshot:null};
+    state.currentExamId=id; saveState(); render();
+    $('uploadMsg').textContent='読み込みました：教員'+parsed.teachers.length+'名／'+parsed.slots.length+'コマ';
+  });
+  this.value='';
+});
+// ---------- import: annual plan ----------
+let pendingPlan=null;
+function applyPlanImport(exams,replace){
+  const y=curYear();
+  if(replace){
+    y.exams.slice().forEach(function(e){ if(examStateOf(y,e.id).confirmed) unconfirmExam(y,e.id); });
+    y.exams=[]; y.examStates={};
+  }
+  exams.forEach(function(e,i){
+    const id='plan-'+Date.now()+'-'+i+'-'+Math.floor(Math.random()*100000);
+    y.exams.push({ id:id, name:e.name, slots:e.slots });
+    sortExamList(y.exams);
+    y.examStates[id]={prefill:{},assignments:{},confirmed:false,snapshot:null};
+  });
+  state.currentExamId=y.exams.length?y.exams[0].id:null;
+  pendingPlan=null;
+  saveState(); render();
+  $('planMsg').textContent='取り込みました：'+exams.length+'件の考査';
+}
+$('planFile').addEventListener('change',function(){
+  const f=this.files[0]; if(!f) return;
+  const msg=$('planMsg');
+  readWorkbookRows(f,'年間考査計画表',function(rows,err){
+    if(err){ msg.textContent=err+'手入力で続けてください。'; return; }
+    const exams=parseAnnualPlanRows(rows);
+    if(!exams.length){ msg.textContent='年間計画の形式を読み取れませんでした。手入力で続けてください。'; return; }
+    pendingPlan=exams;
+    const total=exams.reduce(function(n,e){ return n+e.slots.length; },0);
+    msg.textContent='';
+    const panel=$('planImportPanel');
+    panel.innerHTML='<div class="warn" style="background:#eaf5ea;border-color:#9c9"><h3 style="color:#256029">読み取り結果：考査'+exams.length+'件・合計'+total+'コマ</h3>'
+      + exams.map(function(e){ return '<div>'+esc(e.name)+'（'+e.slots.length+'コマ）</div>'; }).join('')
+      + '<p><button id="piReplace">置き換える</button> <button id="piAdd">追加する</button> <button id="piCancel">やめる</button></p></div>';
+    $('piReplace').addEventListener('click',function(){
+      if(!confirm('現在の年間計画を、読み取った'+exams.length+'件の考査で置き換えますか？（確定済みの考査は確定解除されます）')) return;
+      panel.innerHTML=''; applyPlanImport(exams,true);
+    });
+    $('piAdd').addEventListener('click',function(){ panel.innerHTML=''; applyPlanImport(exams,false); });
+    $('piCancel').addEventListener('click',function(){ pendingPlan=null; panel.innerHTML=''; msg.textContent='取り込みをやめました'; });
+  });
+  this.value='';
+});
+// ---------- import: teacher list ----------
+$('teacherListFile').addEventListener('change',function(){
+  const f=this.files[0]; if(!f) return;
+  const msg=$('teacherListMsg');
+  readWorkbookRows(f,'教員別考査監督表',function(rows,err){
+    if(err){ msg.textContent=err; return; }
+    const list=parseTeacherListRows(rows);
+    if(!list.length){ msg.textContent='読み取れませんでした（教員別表、または氏名のある一覧表にしてください）。'; return; }
+    if(!confirm('教員'+list.length+'名を読み取りました。教員一覧を置き換えますか？（各考査の割当・事前記入・確定はクリアされ、累計は読み取った値になります）')){
+      msg.textContent='取り込みをやめました（'+list.length+'名を読み取り）'; return;
+    }
+    const y=curYear();
+    y.teachers=list.map(function(t){ return {name:t.name, gradeRole:t.gradeRole!==undefined?t.gradeRole:roleToGradeRole(t.role), division:t.division!==undefined?t.division:roleToDivision(t.role), total:t.prev||0}; });
+    Object.keys(y.examStates).forEach(function(id){ y.examStates[id]={prefill:{},assignments:{},confirmed:false,snapshot:null}; });
+    saveState(); render();
+    $('teacherListMsg').textContent='取り込みました：教員'+list.length+'名';
+  });
+  this.value='';
+});
+// ---------- import: room master ----------
+let pendingRooms=null;
+function applyRoomImport(entries,replace){
+  const y=curYear();
+  if(replace){ y.master=entries; }
+  else {
+    entries.forEach(function(e){
+      const ix=y.master.findIndex(function(m){ return m.pattern===e.pattern&&(m.row||'any')===(e.row||'any'); });
+      if(ix>=0) y.master[ix].rooms=e.rooms; else y.master.push(e);
+    });
+  }
+  pendingRooms=null;
+  saveState(); render();
+  $('roomMsg').textContent='取り込みました：'+entries.length+'件の科目エントリ';
+}
+$('roomFile').addEventListener('change',function(){
+  const f=this.files[0]; if(!f) return;
+  const msg=$('roomMsg');
+  readWorkbookRows(f,null,function(rows,err){
+    if(err){ msg.textContent=err; return; }
+    const entries=parseRoomMasterRows(rows);
+    if(!entries.length){ msg.textContent='読み取れませんでした（科目と考査実施教室のある表にしてください）。'; return; }
+    pendingRooms=entries;
+    msg.textContent='';
+    const panel=$('roomImportPanel');
+    panel.innerHTML='<div class="warn" style="background:#eaf5ea;border-color:#9c9"><h3 style="color:#256029">読み取り結果：'+entries.length+'件の科目エントリ</h3>'
+      + entries.map(function(e){ return '<div>'+esc(e.pattern)+' → '+esc(e.rooms.join('、'))+'</div>'; }).join('')
+      + '<p><button id="riReplace">置き換える</button> <button id="riAdd">追加・更新する</button> <button id="riCancel">やめる</button></p></div>';
+    $('riReplace').addEventListener('click',function(){
+      if(!confirm('現在の教室割マスターを、読み取った'+entries.length+'件で置き換えますか？')) return;
+      panel.innerHTML=''; applyRoomImport(entries,true);
+    });
+    $('riAdd').addEventListener('click',function(){ panel.innerHTML=''; applyRoomImport(entries,false); });
+    $('riCancel').addEventListener('click',function(){ pendingRooms=null; panel.innerHTML=''; msg.textContent='取り込みをやめました'; });
+  });
+  this.value='';
+});
+
+// ---------- login / year ----------
+function openYearModal(){
+  const sel=$('yearSelect'); sel.innerHTML='';
+  Object.keys(state.years).sort().forEach(function(yr){
+    const o=document.createElement('option'); o.value=yr; o.textContent=yr+'年度'; if(yr===state.currentYear) o.selected=true;
+    sel.appendChild(o);
+  });
+  $('yearModal').classList.add('open');
+}
+function openSelectedYear(){
+  const yr=$('yearSelect').value; if(!yr||!state.years[yr]) return;
+  state.currentYear=yr; const y=curYear(); state.currentExamId=y.exams.length?y.exams[0].id:null; currentView='home'; saveState(); closeYearModal(); render();
+}
+function closeYearModal(){ $('yearModal').classList.remove('open'); }
+$('btnLogin').addEventListener('click',function(){
+  loggedIn=true; currentView='home';
+  $('loginScreen').style.display='none';
+  $('appRoot').style.display='';
+  render(); openYearModal();
+});
+$('btnLogout').addEventListener('click',function(){
+  loggedIn=false;
+  $('appRoot').style.display='none';
+  $('loginScreen').style.display='';
+});
+$('yearBadge').addEventListener('click',openYearModal);
+$('btnOpenYear').addEventListener('click',openSelectedYear);
+$('yearCancel').addEventListener('click',closeYearModal);
+function addYear(v){
+  v=String(v||'').trim(); if(!v){ alert('年度（例：2027）を入力してください'); return false; }
+  if(state.years[v]){ alert('その年度は既にあります'); return false; }
+  state.years[v]=createYearFrom(curYear());
+  state.currentYear=v; state.currentExamId=null;
+  saveState(); return true;
+}
+$('btnAddYear').addEventListener('click',function(){ if(addYear($('newYear').value)){ $('newYear').value=''; openYearModal(); render(); } });
+$('btnAddYear2').addEventListener('click',function(){ if(addYear($('newYear2').value)){ $('newYear2').value=''; render(); } });
+render();
+
+</script>
+</body>
+</html>
