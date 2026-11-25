@@ -93,6 +93,8 @@ input[type=number]{width:64px;padding:4px}
 input[type=text]{padding:4px}
 input[type=file]{font-size:13px}
 .small{font-size:12px;color:#555}
+.chip{display:inline-block;background:#eef3ee;border:1px solid #b9c9b9;border-radius:10px;padding:0 4px;margin:1px;font-size:12px;white-space:nowrap}
+.chipx{border:none;background:none;color:#a33;cursor:pointer;padding:0 2px;font-size:12px}
 .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;background:#eef2ff;border:1px solid #aab}
 .badge.locked{background:#fdecea;border-color:#e5a09a;color:#922b21}
 .badge.open{background:#e8f3e8;border-color:#9c9;color:#256029}
@@ -131,15 +133,15 @@ input[type=file]{font-size:13px}
 <main>
   <section id="view-home" class="view">
     <div class="homecards">
-      <button class="homecard" id="cardSettings"><span class="stepnum">1</span><span class="hc-title">基本設定</span><span class="hc-sub">年間計画・教室割・教員一覧・年度管理</span></button>
+      <button class="homecard" id="cardSettings"><span class="stepnum">1</span><span class="hc-title">基本設定</span><span class="hc-sub">年間計画・科目登録・教員一覧・年度管理</span></button>
       <button class="homecard" id="cardExam"><span class="stepnum">2</span><span class="hc-title">監督表作成</span><span class="hc-sub">事前記入・自動割当・確定</span></button>
     </div>
   </section>
   <section id="view-basic" class="view" style="display:none">
     <div class="homecards">
-      <button class="homecard" data-basic="basictpl"><span class="stepnum">⓪</span><span class="hc-title">基本情報ひな型</span><span class="hc-sub">計画・教員・教室割・設定を1ファイルで入出力</span></button>
+      <button class="homecard" data-basic="basictpl"><span class="stepnum">⓪</span><span class="hc-title">基本情報ひな型</span><span class="hc-sub">計画・教員・科目・設定を1ファイルで入出力</span></button>
       <button class="homecard" data-basic="plan"><span class="stepnum">1</span><span class="hc-title">年間計画</span><span class="hc-sub">考査の日程・時間割の登録</span></button>
-      <button class="homecard" data-basic="rooms"><span class="stepnum">2</span><span class="hc-title">教室割</span><span class="hc-sub">3年 選択科目 → 実施教室</span></button>
+      <button class="homecard" data-basic="rooms"><span class="stepnum">2</span><span class="hc-title">科目登録</span><span class="hc-sub">科目と実施教室の登録</span></button>
       <button class="homecard" data-basic="teachers"><span class="stepnum">3</span><span class="hc-title">教員一覧</span><span class="hc-sub">氏名・学年・分掌の登録</span></button>
       <button class="homecard" data-basic="settings"><span class="stepnum">4</span><span class="hc-title">教室・時間</span><span class="hc-sub">1・2年の教室と試験時間</span></button>
       <button class="homecard" data-basic="year"><span class="stepnum">5</span><span class="hc-title">年度管理</span><span class="hc-sub">年度の追加・切替</span></button>
@@ -194,7 +196,7 @@ input[type=file]{font-size:13px}
   <section id="view-basictpl" class="view" style="display:none">
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
     <h3>⓪ 基本情報ひな型（1ファイル）</h3>
-    <p class="small">年間考査計画・教員一覧・教室割マスター・教室と試験時間を、1つのExcelファイル（シート4枚）で出し入れできます。ダウンロード時点の登録内容が入った状態で出力されます。</p>
+    <p class="small">年間考査計画・教員一覧・科目登録・教室と試験時間を、1つのExcelファイル（シート4枚）で出し入れできます。ダウンロード時点の登録内容が入った状態で出力されます。</p>
     <div class="controls noprint">
       <button id="btnTplAll" class="primary">基本情報ひな型をダウンロード</button>
     </div>
@@ -224,17 +226,17 @@ input[type=file]{font-size:13px}
 
   <section id="view-rooms" class="view" style="display:none">
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
-    <h3>② 教室割マスター（3年 選択科目 → 実施教室）</h3>
+    <h3>② 科目登録（科目 → 実施教室）</h3>
     <div class="controls noprint">
       <button id="btnTplRooms">ひな型Excelをダウンロード</button>
-      <span class="small">教室割Excel読込：</span>
+      <span class="small">科目ひな型・教室割Excel読込：</span>
       <input type="file" id="roomFile" accept=".xlsx,.xls">
       <span id="roomMsg" class="small"></span>
     </div>
     <div id="roomImportPanel"></div>
     <div id="unregArea"></div>
     <div class="scroll"><table id="masterTable" style="width:auto"></table></div>
-    <p class="noprint"><button id="btnAddMaster">行を追加</button> <span class="small">科目名の一部が一致すれば適用されます（長い科目名が優先）。共通科目は 3-1〜3-4 です。</span></p>
+    <p class="noprint"><button id="btnAddMaster">科目を追加</button> <span class="small">時間割の科目は、ここに登録したものから選んで入力します。実施教室は科目ごとに決まります（例：保健（1年）→ 1-1,1-2,1-3,1-4,1-5）。</span></p>
   </section>
 
   <section id="view-teachers" class="view" style="display:none">
@@ -333,44 +335,54 @@ function matchMaster(token,row,master){
   });
   return best;
 }
-function grade3Rooms(bun,ri,master){
-  master=master||DEFAULT_MASTER;
-  const set=new Set(); let fallback=false;
-  [[bun,'b'],[ri,'r']].forEach(function(pair){
-    const s=pair[0], row=pair[1]; if(!s) return;
-    splitSubjects(s).forEach(function(t){
-      const m=matchMaster(t,row,master);
-      if(m) m.rooms.forEach(function(r){ set.add(r); });
-      else { trackHR(row).forEach(function(r){ set.add(r); }); fallback=true; }
+const SUBJ_TRACKS=['1年','2年','3年文','3年理','3年共通'];
+function subjKey(name){ return fw2hw(String(name||'')).replace(/\s/g,''); }
+function findSubject(subjects, track, token){
+  const key=subjKey(token); if(!key) return null;
+  const cands=(track==='3年文'||track==='3年理')?[track,'3年共通']:[track];
+  const list=subjects||[];
+  for(let i=0;i<cands.length;i++){
+    for(let j=0;j<list.length;j++){
+      if(list[j].track===cands[i]&&subjKey(list[j].name)===key) return list[j];
+    }
+  }
+  return null;
+}
+function trackRoomsFallback(track, settings){
+  if(track==='1年') return (settings&&settings.g1rooms)||[];
+  if(track==='2年') return (settings&&settings.g2rooms)||[];
+  if(track==='3年文') return HR_B;
+  if(track==='3年理') return HR_R;
+  return HR4;
+}
+function roomsForSlot(slot,cfg){
+  const settings=(cfg&&cfg.settings)||DEFAULT_SETTINGS;
+  const subjects=(cfg&&cfg.subjects)||[];
+  const sub=(slot&&slot.subjects)||{}; const set=new Set(); let fallback=false;
+  [['g1','1年'],['g2','2年'],['g3b','3年文'],['g3r','3年理']].forEach(function(pair){
+    const val=sub[pair[0]]; if(!val||isRegularLabel(val)) return;
+    splitSubjects(val).forEach(function(t){
+      const e=findSubject(subjects,pair[1],t);
+      if(e) e.rooms.forEach(function(r){ set.add(r); });
+      else { trackRoomsFallback(pair[1],settings).forEach(function(r){ set.add(r); }); fallback=true; }
     });
   });
-  const order=['3-1','3-2','3-3','3-4','3階講義室'];
+  const order=(settings.g1rooms||[]).concat(settings.g2rooms||[]).concat(['3-1','3-2','3-3','3-4','3階講義室']);
   const rooms=order.filter(function(r){ return set.has(r); });
   set.forEach(function(r){ if(rooms.indexOf(r)<0) rooms.push(r); });
   return { rooms: rooms, fallback: fallback };
 }
-function roomsForSlot(slot,cfg){
-  const settings=(cfg&&cfg.settings)||DEFAULT_SETTINGS;
-  const master=(cfg&&cfg.master)||DEFAULT_MASTER;
-  const sub=(slot&&slot.subjects)||{}; const rooms=[]; let fallback=false;
-  if(sub.g1 && !isRegularLabel(sub.g1)) settings.g1rooms.forEach(function(r){ rooms.push(r); });
-  if(sub.g2 && !isRegularLabel(sub.g2)) settings.g2rooms.forEach(function(r){ rooms.push(r); });
-  if(sub.g3b||sub.g3r){ const g=grade3Rooms(sub.g3b,sub.g3r,master); g.rooms.forEach(function(r){ rooms.push(r); }); fallback=g.fallback; }
-  return { rooms: rooms, fallback: fallback };
-}
 function roomSubjects(slot,cfg){
   const settings=(cfg&&cfg.settings)||DEFAULT_SETTINGS;
-  const master=(cfg&&cfg.master)||DEFAULT_MASTER;
+  const subjects=(cfg&&cfg.subjects)||[];
   const sub=(slot&&slot.subjects)||{}; const map={};
   function add(room,subj){ if(!map[room]) map[room]=[]; if(map[room].indexOf(subj)<0) map[room].push(subj); }
-  if(sub.g1 && !isRegularLabel(sub.g1)) settings.g1rooms.forEach(function(r){ splitSubjects(sub.g1).forEach(function(t){ add(r,t); }); });
-  if(sub.g2 && !isRegularLabel(sub.g2)) settings.g2rooms.forEach(function(r){ splitSubjects(sub.g2).forEach(function(t){ add(r,t); }); });
-  [[sub.g3b,'b'],[sub.g3r,'r']].forEach(function(pair){
-    if(!pair[0]) return;
-    splitSubjects(pair[0]).forEach(function(t){
-      const m=matchMaster(t,pair[1],master);
-      if(m) m.rooms.forEach(function(r){ add(r,t); });
-      else trackHR(pair[1]).forEach(function(r){ add(r,t); });
+  [['g1','1年'],['g2','2年'],['g3b','3年文'],['g3r','3年理']].forEach(function(pair){
+    const val=sub[pair[0]]; if(!val||isRegularLabel(val)) return;
+    splitSubjects(val).forEach(function(t){
+      const e=findSubject(subjects,pair[1],t);
+      const rooms=e?e.rooms:trackRoomsFallback(pair[1],settings);
+      rooms.forEach(function(r){ add(r,t); });
     });
   });
   return map;
@@ -457,19 +469,52 @@ function computeWarnings(exam,assignments,cfg){
   });
   return warnings;
 }
-function unregisteredSubjects(exams,master){
+function unregisteredSubjects(exams,subjects){
   const found={}; const list=[];
   (exams||[]).forEach(function(e){
     (e.slots||[]).forEach(function(slot){
-      [['g3b','b'],['g3r','r']].forEach(function(pr){
-        const s=slot.subjects&&slot.subjects[pr[0]]; if(!s) return;
-        splitSubjects(s).forEach(function(t){
-          if(!matchMaster(t,pr[1],master||DEFAULT_MASTER) && !found[t]){ found[t]=true; list.push(t); }
+      [['g1','1年'],['g2','2年'],['g3b','3年文'],['g3r','3年理']].forEach(function(pr){
+        const sv=slot.subjects&&slot.subjects[pr[0]]; if(!sv||isRegularLabel(sv)) return;
+        splitSubjects(sv).forEach(function(t){
+          if(!findSubject(subjects,pr[1],t)&&!found[t]){ found[t]=true; list.push(t); }
         });
       });
     });
   });
   return list;
+}
+function buildSubjectsRegistry(y){
+  const subjects=[]; const idx={};
+  const master=(y&&y.master)||DEFAULT_MASTER;
+  const settings=(y&&y.settings)||DEFAULT_SETTINGS;
+  function add(name,track,rooms){
+    const key=track+'|'+subjKey(name);
+    if(idx[key]){ (rooms||[]).forEach(function(r){ if(idx[key].rooms.indexOf(r)<0) idx[key].rooms.push(r); }); return; }
+    const e={name:name,track:track,rooms:(rooms||[]).slice()}; idx[key]=e; subjects.push(e);
+  }
+  ((y&&y.exams)||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl){ const sj=sl.subjects||{};
+    splitSubjects(sj.g1).forEach(function(t){ if(!isRegularLabel(t)) add(t,'1年',settings.g1rooms||[]); });
+    splitSubjects(sj.g2).forEach(function(t){ if(!isRegularLabel(t)) add(t,'2年',settings.g2rooms||[]); });
+  }); });
+  const g3={};
+  ((y&&y.exams)||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl){ const sj=sl.subjects||{};
+    splitSubjects(sj.g3b).forEach(function(t){ const k=subjKey(t); if(!g3[k]) g3[k]={name:t,b:false,r:false}; g3[k].b=true; });
+    splitSubjects(sj.g3r).forEach(function(t){ const k=subjKey(t); if(!g3[k]) g3[k]={name:t,b:false,r:false}; g3[k].r=true; });
+  }); });
+  Object.keys(g3).forEach(function(k){
+    const e=g3[k];
+    const mB=matchMaster(e.name,'b',master), mR=matchMaster(e.name,'r',master);
+    const roomsB=mB?mB.rooms:HR_B, roomsR=mR?mR.rooms:HR_R;
+    const sameSet=roomsB.length===roomsR.length&&roomsB.every(function(r){ return roomsR.indexOf(r)>=0; });
+    if(e.b&&e.r&&sameSet) add(e.name,'3年共通',roomsB);
+    else { if(e.b) add(e.name,'3年文',roomsB); if(e.r) add(e.name,'3年理',roomsR); }
+  });
+  master.forEach(function(m){
+    const pk=subjKey(m.pattern); if(!pk) return;
+    const covered=subjects.some(function(e){ const k=subjKey(e.name); return k===pk||k.indexOf(pk)>=0||pk.indexOf(k)>=0; });
+    if(!covered) add(m.pattern, m.row==='b'?'3年文':(m.row==='r'?'3年理':'3年共通'), m.rooms);
+  });
+  return subjects;
 }
 function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
 function examRank(name){
@@ -538,7 +583,7 @@ function fixMasterSeed(y){
     if(m&&m.pattern==='総合古典'&&m.row==='any'&&Array.isArray(m.rooms)&&m.rooms.join(',')==='3-1,3-2,3-3,3-4'){ m.rooms=['3-2','3-3','3-4']; m.row='b'; }
   });
 }
-function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); fixMasterSeed(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
+function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); fixMasterSeed(y); if(!y.subjects) y.subjects=buildSubjectsRegistry(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
 function buildInitialYear(initialExams){
   const first=initialExams[0];
   const teachers=first.teachers.map(function(t){ return {name:t.name, gradeRole:roleToGradeRole(t.role), division:roleToDivision(t.role), total:t.prev||0}; });
@@ -546,7 +591,9 @@ function buildInitialYear(initialExams){
   sortExamList(exams);
   const examStates={};
   initialExams.forEach(function(e){ examStates[e.id]={prefill:deepCopy(e.prefill||{}), assignments:{}, confirmed:false, snapshot:null}; });
-  return { teachers:teachers, exams:exams, examStates:examStates, master:deepCopy(DEFAULT_MASTER), settings:deepCopy(DEFAULT_SETTINGS) };
+  const yr={ teachers:teachers, exams:exams, examStates:examStates, master:deepCopy(DEFAULT_MASTER), settings:deepCopy(DEFAULT_SETTINGS) };
+  yr.subjects=buildSubjectsRegistry(yr);
+  return yr;
 }
 function createYearFrom(src){
   src=src||{};
@@ -554,6 +601,7 @@ function createYearFrom(src){
     teachers:(src.teachers||[]).map(function(t){ const n=normalizeTeacher(deepCopy(t)); return {name:n.name, gradeRole:n.gradeRole||'', division:n.division||'', total:0}; }),
     exams:[], examStates:{},
     master:deepCopy(src.master||DEFAULT_MASTER),
+    subjects:deepCopy(src.subjects||[]),
     settings:deepCopy(src.settings||DEFAULT_SETTINGS)
   };
 }
@@ -572,7 +620,7 @@ function examForAssign(year,exam){
   e.teachers=year.teachers.map(function(t,i){ return {name:t.name, role:roleText(t), prev:prev[i]||0}; });
   return e;
 }
-function cfgOf(year){ return { settings:(year&&year.settings)||DEFAULT_SETTINGS, master:(year&&year.master)||DEFAULT_MASTER }; }
+function cfgOf(year){ return { settings:(year&&year.settings)||DEFAULT_SETTINGS, subjects:(year&&year.subjects)||[] }; }
 function confirmExam(year,examId){
   const exam=year.exams.find(function(e){ return e.id===examId; }); if(!exam) return false;
   const st=examStateOf(year,examId); if(st.confirmed) return false;
@@ -1011,11 +1059,39 @@ function parseSettingsTemplate(rows){
   }
   return found?out:null;
 }
+const SUBJ_TRACK_LABEL={'1年':'1年','2年':'2年','3年文':'3年（文）','3年理':'3年（理）','3年共通':'3年（共通）'};
+function buildSubjectsTemplateAOA(y){
+  const aoa=[[TPL_MARK,'subjects','v1'],['科目名','学年・コース','教室名']];
+  (y.subjects||[]).forEach(function(m){
+    const tag=SUBJ_TRACK_LABEL[m.track]||'3年（共通）';
+    if((m.rooms||[]).length) (m.rooms||[]).forEach(function(rm){ aoa.push([m.name,tag,rm]); });
+    else aoa.push([m.name,tag,'']);
+  });
+  for(let i=0;i<3;i++) aoa.push(['','','']);
+  return aoa;
+}
+function parseSubjectsTemplate(rows){
+  const tagMap={'1年':'1年','2年':'2年','3年(文)':'3年文','3年(理)':'3年理','3年(共通)':'3年共通','3年文':'3年文','3年理':'3年理','3年共通':'3年共通'};
+  const list=[]; const idx={};
+  for(let r=2;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=tplCell(row[0]); if(!name) continue;
+    const tag=tagMap[fw2hw(tplCell(row[1])).replace(/\s/g,'').replace(/（/g,'(').replace(/）/g,')')]||'3年共通';
+    const room=tplCell(row[2]);
+    const key=tag+'|'+subjKey(name);
+    if(!idx[key]){ idx[key]={name:name,track:tag,rooms:[]}; list.push(idx[key]); }
+    if(room&&idx[key].rooms.indexOf(room)<0) idx[key].rooms.push(room);
+  }
+  return list;
+}
+function masterToSubjects(entries){
+  return (entries||[]).map(function(e){ return { name:e.pattern, track:e.row==='b'?'3年文':(e.row==='r'?'3年理':'3年共通'), rooms:e.rooms||[] }; });
+}
 function buildCombinedTemplate(y){
   return [
     { name:'考査計画', aoa:buildPlanTemplateAOA(y) },
     { name:'教員一覧', aoa:buildTeachersTemplateAOA(y) },
-    { name:'教室割', aoa:buildMasterTemplateAOA(y) },
+    { name:'科目', aoa:buildSubjectsTemplateAOA(y) },
     { name:'設定', aoa:buildSettingsTemplateAOA(y) }
   ];
 }
@@ -1023,7 +1099,7 @@ function buildCombinedTemplate(y){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV22';
+const LS_KEY='examSupervisorV23';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -1032,6 +1108,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s22=JSON.parse(localStorage.getItem('examSupervisorV22')); if(s22&&s22.years&&s22.years[s22.currentYear]) return normalizeState(s22); }catch(e){}
   try{ const s21=JSON.parse(localStorage.getItem('examSupervisorV21')); if(s21&&s21.years&&s21.years[s21.currentYear]) return normalizeState(s21); }catch(e){}
   try{ const s20=JSON.parse(localStorage.getItem('examSupervisorV20')); if(s20&&s20.years&&s20.years[s20.currentYear]) return normalizeState(s20); }catch(e){}
   try{ const s19=JSON.parse(localStorage.getItem('examSupervisorV19')); if(s19&&s19.years&&s19.years[s19.currentYear]) return normalizeState(s19); }catch(e){}
@@ -1345,6 +1422,14 @@ function renderTeacherTable(y,exam,st,tableId,mode){
 }
 function subjInputVal(v){ return (v||'').replace(/\n/g,' / '); }
 function subjParseVal(v){ const parts=String(v||'').split('/').map(function(x){ return x.trim(); }).filter(Boolean); return parts.length?parts.join('\n'):null; }
+function subjCellHtml(y,exam,si,f,val){
+  const tracks={g1:['1年'],g2:['2年'],g3b:['3年文','3年共通'],g3r:['3年理','3年共通']}[f];
+  const cur=splitSubjects(val);
+  const chips=cur.map(function(t){ return '<span class="chip">'+esc(t)+' <button class="chipx" data-exam="'+exam.id+'" data-si="'+si+'" data-f="'+f+'" data-t="'+esc(t)+'">×</button></span>'; }).join(' ');
+  const opts=(y.subjects||[]).filter(function(s2){ return tracks.indexOf(s2.track)>=0&&s2.name&&cur.indexOf(s2.name)<0; })
+    .map(function(s2){ return '<option value="'+esc(s2.name)+'">'+esc(s2.name)+'</option>'; }).join('');
+  return '<td>'+chips+' <select class="subj-sel" data-exam="'+exam.id+'" data-si="'+si+'" data-f="'+f+'"><option value="">＋追加</option>'+opts+'</select></td>';
+}
 function renderPlan(){
   const y=curYear(); const area=$('planArea'); let h='';
   y.exams.forEach(function(exam){
@@ -1354,13 +1439,13 @@ function renderPlan(){
     exam.slots.forEach(function(s,si){
       h+='<tr><td><input type="text" class="slot-in" data-exam="'+exam.id+'" data-si="'+si+'" data-f="date" value="'+esc(s.date||'')+'" size="12"></td>'
         +'<td><input type="number" class="slot-in" data-exam="'+exam.id+'" data-si="'+si+'" data-f="period" value="'+s.period+'" style="width:52px"></td>'
-        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g1" value="'+esc(subjInputVal(s.subjects&&s.subjects.g1))+'"></td>'
-        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g2" value="'+esc(subjInputVal(s.subjects&&s.subjects.g2))+'"></td>'
-        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g3b" value="'+esc(subjInputVal(s.subjects&&s.subjects.g3b))+'"></td>'
-        +'<td><input type="text" class="slot-in subj" data-exam="'+exam.id+'" data-si="'+si+'" data-f="g3r" value="'+esc(subjInputVal(s.subjects&&s.subjects.g3r))+'"></td>'
+        +subjCellHtml(y,exam,si,'g1',s.subjects&&s.subjects.g1)
+        +subjCellHtml(y,exam,si,'g2',s.subjects&&s.subjects.g2)
+        +subjCellHtml(y,exam,si,'g3b',s.subjects&&s.subjects.g3b)
+        +subjCellHtml(y,exam,si,'g3r',s.subjects&&s.subjects.g3r)
         +'<td><button class="danger slot-del" data-exam="'+exam.id+'" data-si="'+si+'">削除</button></td></tr>';
     });
-    h+='</table></div><p><button class="slot-add" data-exam="'+exam.id+'">コマを追加</button> <span class="small">科目は「 / 」区切りで複数入力できます。コマの追加・削除をすると、その考査の割当はクリアされます（事前記入は可能な範囲で引き継ぎます）。</span></p></div>';
+    h+='</table></div><p><button class="slot-add" data-exam="'+exam.id+'">コマを追加</button> <span class="small">科目はプルダウンから追加できます（科目の登録は基本設定の「科目登録」です）。コマの追加・削除をすると、その考査の割当はクリアされます（事前記入は可能な範囲で引き継ぎます）。</span></p></div>';
   });
   if(!y.exams.length) h='<p class="small">考査がありません。下から追加するか、年間計画Excelを取り込んでください。</p>';
   area.innerHTML=h;
@@ -1375,6 +1460,29 @@ function renderPlan(){
       if(f==='date') s.date=inp.value;
       else if(f==='period') s.period=parseInt(inp.value,10)||1;
       else { if(!s.subjects) s.subjects={}; s.subjects[f]=subjParseVal(inp.value); }
+      saveState(); render();
+    });
+  });
+  area.querySelectorAll('.subj-sel').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      if(!sel.value) return;
+      const ex=y.exams.find(function(e){ return e.id===sel.dataset.exam; }); if(!ex) return;
+      const sl=ex.slots[parseInt(sel.dataset.si,10)]; if(!sl) return;
+      if(!sl.subjects) sl.subjects={};
+      const f=sel.dataset.f;
+      const cur=splitSubjects(sl.subjects[f]);
+      if(cur.indexOf(sel.value)<0) cur.push(sel.value);
+      sl.subjects[f]=cur.length?cur.join('\n'):null;
+      saveState(); render();
+    });
+  });
+  area.querySelectorAll('.chipx').forEach(function(b){
+    b.addEventListener('click',function(){
+      const ex=y.exams.find(function(e){ return e.id===b.dataset.exam; }); if(!ex) return;
+      const sl=ex.slots[parseInt(b.dataset.si,10)]; if(!sl||!sl.subjects) return;
+      const f=b.dataset.f;
+      const cur=splitSubjects(sl.subjects[f]).filter(function(t){ return t!==b.dataset.t; });
+      sl.subjects[f]=cur.length?cur.join('\n'):null;
       saveState(); render();
     });
   });
@@ -1419,33 +1527,36 @@ function renderPlan(){
 // ---------- rooms master ----------
 function renderRooms(){
   const y=curYear();
-  const unreg=unregisteredSubjects(y.exams, y.master);
+  const unreg=unregisteredSubjects(y.exams, y.subjects);
   $('unregArea').innerHTML=unreg.length
-    ? '<div class="warn"><h3>⚠ 教室割が未登録の3年科目 '+unreg.length+'件（3-1〜3-4で仮に割り当てます）</h3>'+unreg.map(function(t){ return '<div>'+esc(t)+'</div>'; }).join('')+'</div>'
+    ? '<div class="warn"><h3>⚠ 科目登録にない科目 '+unreg.length+'件（仮の教室で割り当てています）</h3>'+unreg.map(function(t){ return '<div>'+esc(t)+'</div>'; }).join('')+'<p class="small">下の表に登録するか、年間計画で登録済みの科目に直してください。</p></div>'
     : '<p class="small">未登録の科目はありません。</p>';
-  let h='<tr><th>科目（部分一致）</th><th>実施教室（カンマ区切り）</th><th>対象</th><th></th></tr>';
-  y.master.forEach(function(m,mi){
-    h+='<tr><td><input type="text" class="m-in" data-mi="'+mi+'" data-f="pattern" value="'+esc(m.pattern)+'"></td>'
-      +'<td><input type="text" class="m-in" data-mi="'+mi+'" data-f="rooms" value="'+esc((m.rooms||[]).join(','))+'" size="28"></td>'
-      +'<td><select class="m-in" data-mi="'+mi+'" data-f="row"><option value="any"'+(m.row==='any'?' selected':'')+'>文・理共通</option><option value="b"'+(m.row==='b'?' selected':'')+'>文のみ</option><option value="r"'+(m.row==='r'?' selected':'')+'>理のみ</option></select></td>'
+  let h='<tr><th>科目名</th><th>学年・コース</th><th>実施教室（カンマ区切り）</th><th></th></tr>';
+  (y.subjects||[]).forEach(function(m,mi){
+    h+='<tr><td><input type="text" class="m-in" data-mi="'+mi+'" data-f="name" value="'+esc(m.name)+'"></td>'
+      +'<td><select class="m-sel" data-mi="'+mi+'" data-f="track">'+SUBJ_TRACKS.map(function(t){ return '<option value="'+t+'"'+(m.track===t?' selected':'')+'>'+SUBJ_TRACK_LABEL[t]+'</option>'; }).join('')+'</select></td>'
+      +'<td><input type="text" class="m-in" data-mi="'+mi+'" data-f="rooms" value="'+esc((m.rooms||[]).join(','))+'" size="30"></td>'
       +'<td><button class="danger m-del" data-mi="'+mi+'">削除</button></td></tr>';
   });
   $('masterTable').innerHTML=h;
   $('masterTable').querySelectorAll('.m-in').forEach(function(inp){
     inp.addEventListener('change',function(){
-      const m=y.master[parseInt(inp.dataset.mi,10)]; if(!m) return;
-      const f=inp.dataset.f;
-      if(f==='pattern') m.pattern=inp.value.trim();
-      else if(f==='rooms') m.rooms=inp.value.split(/[,、]/).map(function(x){ return x.trim(); }).filter(Boolean);
-      else if(f==='row') m.row=inp.value;
+      const m=(y.subjects||[])[parseInt(inp.dataset.mi,10)]; if(!m) return;
+      if(inp.dataset.f==='name') m.name=inp.value;
+      else if(inp.dataset.f==='rooms') m.rooms=inp.value.split(/[,、\s]+/).filter(Boolean);
       saveState(); render();
     });
   });
+  $('masterTable').querySelectorAll('.m-sel').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      const m=(y.subjects||[])[parseInt(sel.dataset.mi,10)]; if(!m) return;
+      m.track=sel.value; saveState(); render();
+    });
+  });
   $('masterTable').querySelectorAll('.m-del').forEach(function(b){
-    b.addEventListener('click',function(){ y.master.splice(parseInt(b.dataset.mi,10),1); saveState(); render(); });
+    b.addEventListener('click',function(){ y.subjects.splice(parseInt(b.dataset.mi,10),1); saveState(); render(); });
   });
 }
-// ---------- teachers ----------
 function renderTeachers(){
   const y=curYear();
   function opts(list,cur){ return '<option value=""></option>'+list.map(function(o){ return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o)+'</option>'; }).join(''); }
@@ -1617,9 +1728,9 @@ $('btnAddExam').addEventListener('click',function(){
   y.examStates[id]={prefill:{},assignments:{},confirmed:false,snapshot:null};
   state.currentExamId=id; $('newExamName').value=''; saveState(); render();
 });
-$('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
+$('btnAddMaster').addEventListener('click',function(){ const y=curYear(); if(!y.subjects) y.subjects=[]; y.subjects.push({name:'',track:'3年共通',rooms:[]}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV21'); localStorage.removeItem('examSupervisorV20'); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV22'); localStorage.removeItem('examSupervisorV21'); localStorage.removeItem('examSupervisorV20'); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
@@ -1680,7 +1791,7 @@ function exportExcel(){
 
 // ---------- combined basic-info template ----------
 const COMBINED_HELP=[
- '基本情報ひな型の記入方法です。シートが4枚あります（考査計画・教員一覧・教室割・設定）。',
+ '基本情報ひな型の記入方法です。シートが4枚あります（考査計画・教員一覧・科目・設定）。',
  '各シートの1行目にある目印は消さないでください。読み込み時に、この目印でシートを見分けます。',
  '',
  '【考査計画】1行＝1科目です。考査名・日付・時限は行ごとに書いてください。複数科目は行を分けてください。',
@@ -1689,7 +1800,7 @@ const COMBINED_HELP=[
  '【教員一覧】学年は「1-3」「1学年副担任」「教務主任」など、アプリの選択肢と同じ表記で書いてください。',
  '分掌は「教務」「進路」「生徒指導」「総務」のいずれかです。累計（前回迄）はこれまでの監督回数の合計です。',
  '',
- '【教室割】3年生の科目と実施教室です。1行＝1教室で、文理は「文」「理」「共通」です。',
+ '【科目】科目と実施教室です。1行＝1教室で、学年・コースは「1年」「2年」「3年（文）」「3年（理）」「3年（共通）」です。',
  '',
  '【設定】1年・2年の教室（1行＝1教室）と、時限ごとの試験時間です。',
  '',
@@ -1721,9 +1832,10 @@ function applyTeacherListReplace(list){
   Object.keys(y.examStates).forEach(function(id){ y.examStates[id]={prefill:{},assignments:{},confirmed:false,snapshot:null}; });
 }
 function applyCombinedImport(parts){
+  const y=curYear();
   if(parts.teachers) applyTeacherListReplace(parts.teachers);
   if(parts.plan) applyPlanImport(parts.plan, true);
-  if(parts.master) applyRoomImport(parts.master, true);
+  if(parts.subjects) y.subjects=parts.subjects;
   if(parts.settings){
     const y=curYear();
     if(parts.settings.g1rooms&&parts.settings.g1rooms.length) y.settings.g1rooms=parts.settings.g1rooms;
@@ -1745,7 +1857,8 @@ $('basicTplFile').addEventListener('change',function(){
       const rows=sheets[nm]; const t=tplType(rows); if(!t) return;
       if(t==='plan'){ const ex=parsePlanTemplate(rows, parseInt(state.currentYear,10)); if(ex.length){ parts.plan=ex; found.push('年間考査計画（'+ex.length+'件の考査）'); } }
       else if(t==='teachers'){ const li=parseTeachersTemplate(rows); if(li.length){ parts.teachers=li; found.push('教員一覧（'+li.length+'名）'); } }
-      else if(t==='master'){ const en=parseMasterTemplate(rows); if(en.length){ parts.master=en; found.push('教室割マスター（'+en.length+'件）'); } }
+      else if(t==='subjects'){ const en=parseSubjectsTemplate(rows); if(en.length){ parts.subjects=en; found.push('科目登録（'+en.length+'件）'); } }
+      else if(t==='master'){ const en=masterToSubjects(parseMasterTemplate(rows)); if(en.length){ parts.subjects=en; found.push('科目登録（旧・教室割から変換：'+en.length+'件）'); } }
       else if(t==='settings'){ const stp=parseSettingsTemplate(rows); if(stp){ parts.settings=stp; found.push('教室・試験時間'); } }
     });
     if(!found.length){ msg.textContent='ひな型のシートが見つかりませんでした（基本情報ひな型のファイルを選んでください）。'; return; }
@@ -1778,8 +1891,8 @@ $('btnTplTeachers').addEventListener('click',function(){
     ['教員一覧のひな型です。今の登録内容が入っています。','学年は「1-3」「1学年副担任」「1学年主任」「教務主任」など、アプリの選択肢と同じ表記で書いてください。','分掌は「教務」「進路」「生徒指導」「総務」のいずれかです（主任を選ぶと自動で入ります）。','累計（前回迄）は、これまでの監督回数の合計です。新規の先生は0でかまいません。','記入したら、教員一覧の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
 });
 $('btnTplRooms').addEventListener('click',function(){
-  downloadTemplate('教室割ひな型_'+state.currentYear+'年度.xlsx','教室割',buildMasterTemplateAOA(curYear()),
-    ['教室割マスター（3年生）のひな型です。今の登録内容が入っています。','1行＝1教室です。同じ科目で実施教室が複数あるときは、教室ごとに行を分けてください（1つのセルに1教室だけ）。','文理は「文」「理」「共通」のいずれかです。共通は文理どちらの時間割に出ても適用されます。','科目名の一部が一致すれば適用され、長い科目名が優先されます。','記入したら、教室割マスターの画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+  downloadTemplate('科目ひな型_'+state.currentYear+'年度.xlsx','科目',buildSubjectsTemplateAOA(curYear()),
+    ['科目登録のひな型です。今の登録内容が入っています。','1行＝1教室です。同じ科目で実施教室が複数あるときは、教室ごとに行を分けてください（1つのセルに1教室だけ）。','学年・コースは「1年」「2年」「3年（文）」「3年（理）」「3年（共通）」のいずれかです。共通は文理どちらの時間割でも選べます。','時間割の科目は、ここに登録したものから選んで入力します。','記入したら、科目登録の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
 });
 $('btnTplSheet').addEventListener('click',function(){
   const y=curYear(), exam=curExam();
@@ -1930,52 +2043,58 @@ function applyTeacherListImport(list){
     saveState(); render();
     $('teacherListMsg').textContent='取り込みました：教員'+list.length+'名';
 }
-// ---------- import: room master ----------
-let pendingRooms=null;
-function applyRoomImport(entries,replace){
+// ---------- import: subjects ----------
+let pendingSubjects=null;
+function applySubjectImport(entries,replace){
   const y=curYear();
-  if(replace){ y.master=entries; }
+  if(!y.subjects) y.subjects=[];
+  if(replace){ y.subjects=entries; }
   else {
     entries.forEach(function(e){
-      const ix=y.master.findIndex(function(m){ return m.pattern===e.pattern&&(m.row||'any')===(e.row||'any'); });
-      if(ix>=0) y.master[ix].rooms=e.rooms; else y.master.push(e);
+      const ix=y.subjects.findIndex(function(m){ return m.track===e.track&&subjKey(m.name)===subjKey(e.name); });
+      if(ix>=0) y.subjects[ix].rooms=e.rooms; else y.subjects.push(e);
     });
   }
-  pendingRooms=null;
+  pendingSubjects=null;
   saveState(); render();
-  $('roomMsg').textContent='取り込みました：'+entries.length+'件の科目エントリ';
+  $('roomMsg').textContent='取り込みました：'+entries.length+'件の科目';
+}
+function showRoomImport(entries){
+  const msg=$('roomMsg');
+  pendingSubjects=entries;
+  msg.textContent='';
+  const panel=$('roomImportPanel');
+  panel.innerHTML='<div class="warn" style="background:#eaf5ea;border-color:#9c9"><h3 style="color:#256029">読み取り結果：'+entries.length+'件の科目</h3>'
+    + entries.map(function(e){ return '<div>'+esc(e.name)+'（'+esc(SUBJ_TRACK_LABEL[e.track]||e.track)+'） → '+esc(e.rooms.join('、'))+'</div>'; }).join('')
+    + '<p><button id="riReplace">置き換える</button> <button id="riAdd">追加・更新する</button> <button id="riCancel">やめる</button></p></div>';
+  $('riReplace').addEventListener('click',function(){
+    if(!confirm('現在の科目登録を、読み取った'+entries.length+'件で置き換えますか？')) return;
+    panel.innerHTML=''; applySubjectImport(entries,true);
+  });
+  $('riAdd').addEventListener('click',function(){ panel.innerHTML=''; applySubjectImport(entries,false); });
+  $('riCancel').addEventListener('click',function(){ pendingSubjects=null; panel.innerHTML=''; msg.textContent='取り込みをやめました'; });
 }
 $('roomFile').addEventListener('change',function(){
   const f=this.files[0]; if(!f) return;
   const msg=$('roomMsg');
   readWorkbookRows(f,null,function(rows,err){
     if(err){ msg.textContent=err; return; }
+    if(tplType(rows)==='subjects'){
+      const sentries=parseSubjectsTemplate(rows);
+      if(!sentries.length){ msg.textContent='ひな型から読み取れませんでした（科目名を確認してください）。'; return; }
+      showRoomImport(sentries); return;
+    }
     if(tplType(rows)==='master'){
-      const tentries=parseMasterTemplate(rows);
-      if(!tentries.length){ msg.textContent='ひな型から読み取れませんでした（科目名と実施教室を確認してください）。'; return; }
-      showRoomImport(tentries); return;
+      const mentries=masterToSubjects(parseMasterTemplate(rows));
+      if(!mentries.length){ msg.textContent='ひな型から読み取れませんでした。'; return; }
+      showRoomImport(mentries); return;
     }
     const entries=parseRoomMasterRows(rows);
     if(!entries.length){ msg.textContent='読み取れませんでした（科目と考査実施教室のある表にしてください）。'; return; }
-    showRoomImport(entries);
+    showRoomImport(masterToSubjects(entries));
   });
   this.value='';
 });
-function showRoomImport(entries){
-    const msg=$('roomMsg');
-    pendingRooms=entries;
-    msg.textContent='';
-    const panel=$('roomImportPanel');
-    panel.innerHTML='<div class="warn" style="background:#eaf5ea;border-color:#9c9"><h3 style="color:#256029">読み取り結果：'+entries.length+'件の科目エントリ</h3>'
-      + entries.map(function(e){ return '<div>'+esc(e.pattern)+' → '+esc(e.rooms.join('、'))+'</div>'; }).join('')
-      + '<p><button id="riReplace">置き換える</button> <button id="riAdd">追加・更新する</button> <button id="riCancel">やめる</button></p></div>';
-    $('riReplace').addEventListener('click',function(){
-      if(!confirm('現在の教室割マスターを、読み取った'+entries.length+'件で置き換えますか？')) return;
-      panel.innerHTML=''; applyRoomImport(entries,true);
-    });
-    $('riAdd').addEventListener('click',function(){ panel.innerHTML=''; applyRoomImport(entries,false); });
-    $('riCancel').addEventListener('click',function(){ pendingRooms=null; panel.innerHTML=''; msg.textContent='取り込みをやめました'; });
-}
 
 // ---------- login / year ----------
 function openYearModal(){
