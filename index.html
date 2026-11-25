@@ -795,7 +795,7 @@ function parseRoomMasterRows(rows){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV17';
+const LS_KEY='examSupervisorV18';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -804,6 +804,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s17=JSON.parse(localStorage.getItem('examSupervisorV17')); if(s17&&s17.years&&s17.years[s17.currentYear]) return normalizeState(s17); }catch(e){}
   try{ const s16=JSON.parse(localStorage.getItem('examSupervisorV16')); if(s16&&s16.years&&s16.years[s16.currentYear]) return normalizeState(s16); }catch(e){}
   try{ const s15=JSON.parse(localStorage.getItem('examSupervisorV15')); if(s15&&s15.years&&s15.years[s15.currentYear]) return normalizeState(s15); }catch(e){}
   try{ const s14=JSON.parse(localStorage.getItem('examSupervisorV14')); if(s14&&s14.years&&s14.years[s14.currentYear]) return normalizeState(s14); }catch(e){}
@@ -896,8 +897,21 @@ function fitEl(el, availMm, basePt, bold){
   const w=textWidthMm(t, basePt, bold);
   if(w>availMm&&w>0){ el.style.fontSize=Math.max(basePt*(availMm/w), basePt*0.45).toFixed(1)+'pt'; }
 }
+function shortNameMap(teachers){
+  const parts=teachers.map(function(t){
+    const p=String(t.name||'').split(/[\s　]+/).filter(Boolean);
+    return { sur:p[0]||'', given:p.slice(1).join('') };
+  });
+  const counts={};
+  parts.forEach(function(x){ counts[x.sur]=(counts[x.sur]||0)+1; });
+  return parts.map(function(x){
+    if(!x.sur) return '';
+    return counts[x.sur]>1 ? x.sur+(x.given?x.given.charAt(0):'') : x.sur;
+  });
+}
 function classMatrix(y,exam,st){
   const cfg=cfgOf(y), eObj=examForAssign(y,exam), teachers=eObj.teachers;
+  const shortNames=shortNameMap(teachers);
   const perSlot=[]; const roomSet={};
   exam.slots.forEach(function(slot,si){
     const info=roomsForSlot(slot,cfg); const rs=roomSubjects(slot,cfg); const a=st.assignments[si]||{};
@@ -905,7 +919,7 @@ function classMatrix(y,exam,st){
     info.rooms.concat(STANDBY_KEYS).forEach(function(room){
       roomSet[room]=1;
       const isStandby=STANDBY_KEYS.indexOf(room)>=0;
-      map[room]={ subj:isStandby?'':(((rs[room]||[]).join('・'))||''), name:(typeof a[room]==='number'&&teachers[a[room]])?teachers[a[room]].name:'' };
+      map[room]={ subj:isStandby?'':(((rs[room]||[]).join('・'))||''), name:(typeof a[room]==='number'&&teachers[a[room]])?shortNames[a[room]]:'' };
     });
     perSlot.push(map);
   });
@@ -1373,7 +1387,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
