@@ -829,6 +829,7 @@ function tplType(rows){
   if(String(rows[0][0]||'').trim()!==TPL_MARK) return null;
   return String(rows[0][1]||'').trim()||null;
 }
+function tplVer(rows){ return (rows&&rows[0])?String(rows[0][2]||'').trim():''; }
 function tplCell(v){ return v==null?'':String(v).trim(); }
 function tplSubj(v){
   if(v==null||v==='') return null;
@@ -849,21 +850,51 @@ function tplDateStr(v,yearNum){
   return str;
 }
 function buildPlanTemplateAOA(y){
-  const aoa=[[TPL_MARK,'plan','v1'],['考査名','日付','時限','1年','2年','3年（文）','3年（理）']];
-  (y.exams||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl,ix){ const sj=sl.subjects||{}; aoa.push([ix===0?ex.name:'',sl.date,sl.period,tplSubjDisp(sj.g1),tplSubjDisp(sj.g2),tplSubjDisp(sj.g3b),tplSubjDisp(sj.g3r)]); }); });
-  for(let i=0;i<5;i++) aoa.push(['','','','','','','']);
+  const aoa=[[TPL_MARK,'plan','v2'],['考査名','日付','時限','学年・コース','科目名']];
+  const tracks=[['1年','g1'],['2年','g2'],['3年（文）','g3b'],['3年（理）','g3r']];
+  (y.exams||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl){
+    const sj=sl.subjects||{}; let wrote=false;
+    tracks.forEach(function(tr){ splitSubjects(sj[tr[1]]).forEach(function(tok){ aoa.push([ex.name,sl.date,sl.period,tr[0],tok]); wrote=true; }); });
+    if(!wrote) aoa.push([ex.name,sl.date,sl.period,'','']);
+  }); });
+  for(let i=0;i<5;i++) aoa.push(['','','','','']);
   return aoa;
 }
 function parsePlanTemplate(rows,yearNum){
+  if(tplVer(rows)==='v2') return parsePlanTemplateV2(rows,yearNum);
   const exams=[]; let cur=null;
   for(let r=2;r<rows.length;r++){
     const row=rows[r]||[];
     const name=tplCell(row[0]), date=tplDateStr(row[1],yearNum), per=parseInt(row[2],10);
-    if(name){ cur={name:name,slots:[]}; exams.push(cur); }
+    if(name&&(!cur||cur.name!==name)){ cur={name:name,slots:[]}; exams.push(cur); }
     if(!cur||!date||!(per>=1)) continue;
     cur.slots.push({ date:date, period:per, subjects:{ g1:tplSubj(row[3]), g2:tplSubj(row[4]), g3b:tplSubj(row[5]), g3r:tplSubj(row[6]) } });
   }
   return exams.filter(function(e){ return e.slots.length>0; });
+}
+function parsePlanTemplateV2(rows,yearNum){
+  const trackMap={'1年':'g1','2年':'g2','3年(文)':'g3b','3年(理)':'g3r'};
+  const exams=[]; const byName={}; let cur=null;
+  for(let r=2;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=tplCell(row[0]);
+    if(name){ if(!byName[name]){ byName[name]={name:name,slots:[],slotIdx:{}}; exams.push(byName[name]); } cur=byName[name]; }
+    if(!cur) continue;
+    const date=tplDateStr(row[1],yearNum), per=parseInt(row[2],10);
+    if(!date||!(per>=1)) continue;
+    const key=date+'|'+per;
+    let slot=cur.slotIdx[key];
+    if(!slot){ slot={date:date,period:per,lists:{g1:[],g2:[],g3b:[],g3r:[]}}; cur.slotIdx[key]=slot; cur.slots.push(slot); }
+    const tk=trackMap[fw2hw(tplCell(row[3])).replace(/\s/g,'').replace(/（/g,'(').replace(/）/g,')')];
+    const subj=tplCell(row[4]);
+    if(tk&&subj&&slot.lists[tk].indexOf(subj)<0) slot.lists[tk].push(subj);
+  }
+  return exams.map(function(e){
+    return { name:e.name, slots:e.slots.map(function(sl){
+      const o={}; ['g1','g2','g3b','g3r'].forEach(function(k){ o[k]=sl.lists[k].length?sl.lists[k].join('\n'):null; });
+      return { date:sl.date, period:sl.period, subjects:o };
+    }) };
+  }).filter(function(e){ return e.slots.length>0; });
 }
 function buildTeachersTemplateAOA(y){
   const aoa=[[TPL_MARK,'teachers','v1'],['氏名','学年','分掌','累計（前回迄）']];
@@ -885,12 +916,29 @@ function parseTeachersTemplate(rows){
   return list;
 }
 function buildMasterTemplateAOA(y){
-  const aoa=[[TPL_MARK,'master','v1'],['科目名','文理','実施教室']];
-  (y.master||[]).forEach(function(m){ aoa.push([m.pattern, m.row==='b'?'文':(m.row==='r'?'理':'共通'), (m.rooms||[]).join('、')]); });
+  const aoa=[[TPL_MARK,'master','v2'],['科目名','文理','教室名']];
+  (y.master||[]).forEach(function(m){
+    const tag=m.row==='b'?'文':(m.row==='r'?'理':'共通');
+    (m.rooms||[]).forEach(function(rm){ aoa.push([m.pattern,tag,rm]); });
+  });
   for(let i=0;i<3;i++) aoa.push(['','','']);
   return aoa;
 }
 function parseMasterTemplate(rows){
+  if(tplVer(rows)==='v2'){
+    const list=[]; const idx={};
+    for(let r=2;r<rows.length;r++){
+      const row=rows[r]||[];
+      const pat=tplCell(row[0]); if(!pat) continue;
+      const tag=tplCell(row[1]);
+      const rowTag=tag==='文'?'b':(tag==='理'?'r':'any');
+      const room=tplCell(row[2]); if(!room) continue;
+      const key=pat+'|'+rowTag;
+      if(!idx[key]){ idx[key]={pattern:pat,rooms:[],row:rowTag}; list.push(idx[key]); }
+      if(idx[key].rooms.indexOf(room)<0) idx[key].rooms.push(room);
+    }
+    return list;
+  }
   const list=[];
   for(let r=2;r<rows.length;r++){
     const row=rows[r]||[];
@@ -928,12 +976,30 @@ function parseSheetTemplate(rows){
 }
 function buildSettingsTemplateAOA(y){
   const st=y.settings||DEFAULT_SETTINGS; const t=st.times||{};
-  return [[TPL_MARK,'settings','v1'],
-    ['1年の教室',(st.g1rooms||[]).join(',')],
-    ['2年の教室',(st.g2rooms||[]).join(',')],
-    ['1時間目',t.p1||''],['2時間目',t.p2||''],['3時間目',t.p3||''],['4時間目',t.p4||'']];
+  const aoa=[[TPL_MARK,'settings','v2']];
+  (st.g1rooms||[]).forEach(function(r){ aoa.push(['教室','1年',r]); });
+  (st.g2rooms||[]).forEach(function(r){ aoa.push(['教室','2年',r]); });
+  [['1時間目','p1'],['2時間目','p2'],['3時間目','p3'],['4時間目','p4']].forEach(function(pr){ aoa.push(['試験時間',pr[0],t[pr[1]]||'']); });
+  return aoa;
 }
 function parseSettingsTemplate(rows){
+  if(tplVer(rows)==='v2'){
+    const out={ g1rooms:[], g2rooms:[], times:{} }; let found=false;
+    for(let r=1;r<rows.length;r++){
+      const row=rows[r]||[];
+      const kind=tplCell(row[0]), a=tplCell(row[1]), b=tplCell(row[2]);
+      if(kind==='教室'&&b){
+        if(a==='1年'){ out.g1rooms.push(b); found=true; }
+        else if(a==='2年'){ out.g2rooms.push(b); found=true; }
+      } else if(kind==='試験時間'&&b){
+        const m=a.match(/^([1-4])時間目/); if(m){ out.times['p'+m[1]]=b; found=true; }
+      }
+    }
+    if(!found) return null;
+    if(!out.g1rooms.length) out.g1rooms=null;
+    if(!out.g2rooms.length) out.g2rooms=null;
+    return out;
+  }
   const out={ g1rooms:null, g2rooms:null, times:{} }; let found=false;
   for(let r=1;r<rows.length;r++){
     const row=rows[r]||[];
@@ -957,7 +1023,7 @@ function buildCombinedTemplate(y){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV21';
+const LS_KEY='examSupervisorV22';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -966,6 +1032,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s21=JSON.parse(localStorage.getItem('examSupervisorV21')); if(s21&&s21.years&&s21.years[s21.currentYear]) return normalizeState(s21); }catch(e){}
   try{ const s20=JSON.parse(localStorage.getItem('examSupervisorV20')); if(s20&&s20.years&&s20.years[s20.currentYear]) return normalizeState(s20); }catch(e){}
   try{ const s19=JSON.parse(localStorage.getItem('examSupervisorV19')); if(s19&&s19.years&&s19.years[s19.currentYear]) return normalizeState(s19); }catch(e){}
   try{ const s18=JSON.parse(localStorage.getItem('examSupervisorV18')); if(s18&&s18.years&&s18.years[s18.currentYear]) return normalizeState(s18); }catch(e){}
@@ -1552,7 +1619,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV20'); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV21'); localStorage.removeItem('examSupervisorV20'); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
@@ -1616,15 +1683,15 @@ const COMBINED_HELP=[
  '基本情報ひな型の記入方法です。シートが4枚あります（考査計画・教員一覧・教室割・設定）。',
  '各シートの1行目にある目印は消さないでください。読み込み時に、この目印でシートを見分けます。',
  '',
- '【考査計画】1行＝1コマです。考査名はその考査の先頭行にだけ書いてください。',
- '日付は「10月20日（火）」の形、時限は数字です。複数科目は「 / 」で区切ってください。試験がないコマは空欄です。',
+ '【考査計画】1行＝1科目です。考査名・日付・時限は行ごとに書いてください。複数科目は行を分けてください。',
+ '日付は「10月20日（火）」の形、時限は数字です。',
  '',
  '【教員一覧】学年は「1-3」「1学年副担任」「教務主任」など、アプリの選択肢と同じ表記で書いてください。',
  '分掌は「教務」「進路」「生徒指導」「総務」のいずれかです。累計（前回迄）はこれまでの監督回数の合計です。',
  '',
- '【教室割】3年生の科目と実施教室です。文理は「文」「理」「共通」。実施教室は「、」で区切ってください。',
+ '【教室割】3年生の科目と実施教室です。1行＝1教室で、文理は「文」「理」「共通」です。',
  '',
- '【設定】1年・2年の教室（カンマ区切り）と、時限ごとの試験時間です。',
+ '【設定】1年・2年の教室（1行＝1教室）と、時限ごとの試験時間です。',
  '',
  '記入したら、基本設定の「⓪ 基本情報ひな型」でこのファイルを読み込んでください。含まれているシートだけが置き換わります。'
 ];
@@ -1704,7 +1771,7 @@ function downloadTemplate(fname, sheetName, aoa, help){
 }
 $('btnTplPlan').addEventListener('click',function(){
   downloadTemplate('年間考査計画ひな型_'+state.currentYear+'年度.xlsx','考査計画',buildPlanTemplateAOA(curYear()),
-    ['年間考査計画のひな型です。今の登録内容が入っています。','1行＝1コマです。考査名はその考査の先頭行にだけ書いてください（下の行は空欄で続けてください）。','日付は「10月20日（火）」の形、時限は数字で書いてください。','同じコマに複数科目あるときは「 / 」で区切ってください（例：数学ⅢＣ / 数学理解）。','その学年・コースで試験がないコマは空欄にしてください。','記入したら、年間計画の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+    ['年間考査計画のひな型です。今の登録内容が入っています。','1行＝1科目です。考査名・日付・時限・学年コース・科目名を、行ごとに書いてください。','同じコマに複数科目あるときは、科目ごとに行を分けてください（1つのセルに1科目だけ）。','日付は「10月20日（火）」の形、時限は数字で書いてください。','記入したら、年間計画の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
 });
 $('btnTplTeachers').addEventListener('click',function(){
   downloadTemplate('教員一覧ひな型_'+state.currentYear+'年度.xlsx','教員一覧',buildTeachersTemplateAOA(curYear()),
@@ -1712,7 +1779,7 @@ $('btnTplTeachers').addEventListener('click',function(){
 });
 $('btnTplRooms').addEventListener('click',function(){
   downloadTemplate('教室割ひな型_'+state.currentYear+'年度.xlsx','教室割',buildMasterTemplateAOA(curYear()),
-    ['教室割マスター（3年生）のひな型です。今の登録内容が入っています。','文理は「文」「理」「共通」のいずれかです。共通は文理どちらの時間割に出ても適用されます。','実施教室は「、」で区切って書いてください（例：3-2、3-4）。','科目名の一部が一致すれば適用され、長い科目名が優先されます。','記入したら、教室割マスターの画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+    ['教室割マスター（3年生）のひな型です。今の登録内容が入っています。','1行＝1教室です。同じ科目で実施教室が複数あるときは、教室ごとに行を分けてください（1つのセルに1教室だけ）。','文理は「文」「理」「共通」のいずれかです。共通は文理どちらの時間割に出ても適用されます。','科目名の一部が一致すれば適用され、長い科目名が優先されます。','記入したら、教室割マスターの画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
 });
 $('btnTplSheet').addEventListener('click',function(){
   const y=curYear(), exam=curExam();
