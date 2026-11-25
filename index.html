@@ -41,6 +41,11 @@ main{padding:12px 14px 30px}
 #printClassArea th,#printClassArea td{border:1px solid #333;color:#000;padding:2px 4px;text-align:left;white-space:normal;word-break:break-all}
 #printClassArea th{background:#e8e8e8}
 #printClassArea .slothead{background:#dbe7f3;font-weight:bold}
+#printClassArea td.centry{vertical-align:top;height:13mm}
+#printClassArea .rm{font-weight:bold;font-size:9pt;white-space:nowrap}
+#printClassArea .sb{font-size:7.5pt;color:#333;white-space:nowrap}
+#printClassArea .nm{font-size:8.5pt;white-space:nowrap}
+#printClassArea .tm{font-weight:normal;font-size:7.5pt}
 #printArea h2{font-size:16pt;margin:0 0 6px;color:#000}
 #printArea table{table-layout:fixed}
 #printArea th,#printArea td{border:1px solid #333;color:#000;white-space:normal;word-break:break-all}
@@ -98,12 +103,13 @@ input[type=file]{font-size:13px}
 .subtabs{display:flex;gap:6px;margin:6px 0 10px}
 @media print{
   @page{ size:A3 portrait; margin:10mm; }
+  @page landscapeA3{ size:A3 landscape; margin:10mm; }
   header,nav,.noprint,.controls,.subtabs{display:none!important}
   body{background:#fff}
   main{padding:0}
   .view{display:none!important}
   #printArea{display:block!important}
-  #printClassArea{display:block!important;page-break-before:always}
+  #printClassArea{display:block!important;page-break-before:always;page:landscapeA3}
 }
 </style>
 </head>
@@ -175,7 +181,7 @@ input[type=file]{font-size:13px}
         <h3>⑤ 確定</h3>
         <p id="confirmInfo"></p>
         <p><button class="primary" id="btnConfirm">確定</button> <button id="btnPrint">印刷</button> <button id="btnExcel">Excel出力</button></p>
-        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷では、A3縦向き1枚に収まるよう幅と文字サイズを自動調整した監督表が出て、続けて教室別一覧表も出ます（どちらも同じ割当データから作るので、内容は必ず一致します）。</p>
+        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷では、1ページ目に監督表（A3縦向き・幅と文字サイズを自動調整）、2ページ目に教室別一覧表（A3横向き）が出ます（どちらも同じ割当データから作るので、内容は必ず一致します）。</p>
         <p class="stepnav noprint"><button data-go="4">← 戻る</button></p>
       </div>
       </div>
@@ -789,7 +795,7 @@ function parseRoomMasterRows(rows){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV15';
+const LS_KEY='examSupervisorV16';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -798,6 +804,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s15=JSON.parse(localStorage.getItem('examSupervisorV15')); if(s15&&s15.years&&s15.years[s15.currentYear]) return normalizeState(s15); }catch(e){}
   try{ const s14=JSON.parse(localStorage.getItem('examSupervisorV14')); if(s14&&s14.years&&s14.years[s14.currentYear]) return normalizeState(s14); }catch(e){}
   try{ const s13=JSON.parse(localStorage.getItem('examSupervisorV13')); if(s13&&s13.years&&s13.years[s13.currentYear]) return normalizeState(s13); }catch(e){}
   try{ const s12=JSON.parse(localStorage.getItem('examSupervisorV12')); if(s12&&s12.years&&s12.years[s12.currentYear]) return normalizeState(s12); }catch(e){}
@@ -868,6 +875,26 @@ function renderAssignSummary(y,exam,st){
   const w=computeWarnings(eObj, st.assignments, cfgOf(y));
   el.innerHTML='<p>割当済みです。今回の監督数： <strong>'+Math.min.apply(null,counts)+'〜'+Math.max.apply(null,counts)+'回</strong>'+(w.length?'／ ⚠ 空欄 '+w.length+'件（次の画面で確認できます）':'／ 空欄なし')+'</p>';
 }
+let _fitCtx=null;
+function textWidthMm(text, pt, bold){
+  let w=0;
+  try{
+    if(!_fitCtx){ const c=document.createElement('canvas'); _fitCtx=c.getContext('2d')||'none'; }
+    if(_fitCtx&&_fitCtx!=='none'){ _fitCtx.font=(bold?'bold ':'')+(pt*96/72)+'px sans-serif'; w=_fitCtx.measureText(text).width*25.4/96; }
+  }catch(e){ w=0; }
+  if(!w){
+    let units=0; const str=String(text);
+    for(let i=0;i<str.length;i++){ units += (str.charCodeAt(i)>255?1:0.55); }
+    w=units*pt*0.3528*(bold?1.02:1);
+  }
+  return w;
+}
+function fitEl(el, availMm, basePt, bold){
+  if(!el) return;
+  const t=el.textContent||''; if(!t) return;
+  const w=textWidthMm(t, basePt, bold);
+  if(w>availMm&&w>0){ el.style.fontSize=Math.max(basePt*(availMm/w), basePt*0.45).toFixed(1)+'pt'; }
+}
 function classListRows(y,exam,st){
   const cfg=cfgOf(y), eObj=examForAssign(y,exam), teachers=eObj.teachers;
   const times=(y.settings&&y.settings.times)||{};
@@ -895,17 +922,49 @@ function renderClassList(y,exam,st){
     });
     tbl.innerHTML=h;
   }
-  const pa=$('printClassArea');
-  if(pa){
-    let ph='<h2>'+esc(state.currentYear)+'年度 '+esc(exam.name)+' 教室別一覧表</h2><table><colgroup><col style="width:36mm"><col><col style="width:44mm"></colgroup>';
-    ph+='<tr><th>教室</th><th>科目</th><th>監督者</th></tr>';
-    rows.forEach(function(r){
-      if(r.head) ph+='<tr><th class="slothead" colspan="3">'+esc(r.head)+'</th></tr>';
-      else ph+='<tr><td>'+esc(r.room)+'</td><td>'+esc(r.subj)+'</td><td>'+esc(r.name)+'</td></tr>';
+}
+function renderPrintClassGrid(y,exam,st){
+  const pa=$('printClassArea'); if(!pa) return;
+  const cfg=cfgOf(y), eObj=examForAssign(y,exam), teachers=eObj.teachers;
+  const times=(y.settings&&y.settings.times)||{};
+  const perSlot=exam.slots.map(function(slot,si){
+    const info=roomsForSlot(slot,cfg); const rs=roomSubjects(slot,cfg); const a=st.assignments[si]||{};
+    const entries=[];
+    if(info.rooms.length===0) entries.push({room:'―',subj:'試験なし',name:''});
+    info.rooms.concat(STANDBY_KEYS).forEach(function(room){
+      const isStandby=STANDBY_KEYS.indexOf(room)>=0;
+      entries.push({ room:room, subj:isStandby?'―':(((rs[room]||[]).join('・'))||'―'), name:(typeof a[room]==='number'&&teachers[a[room]])?teachers[a[room]].name:'' });
     });
-    ph+='</table>';
-    pa.innerHTML=ph;
+    return entries;
+  });
+  let maxRows=0; perSlot.forEach(function(e){ if(e.length>maxRows) maxRows=e.length; });
+  const days=[];
+  exam.slots.forEach(function(sl){ const last=days[days.length-1]; if(last&&last.date===sl.date) last.count++; else days.push({date:sl.date,count:1}); });
+  const n=Math.max(exam.slots.length,1);
+  const colW=Math.floor((400/n)*10)/10;
+  let ph='<h2>'+esc(state.currentYear)+'年度 '+esc(exam.name)+' 教室別一覧表</h2><table><colgroup>';
+  exam.slots.forEach(function(){ ph+='<col style="width:'+colW+'mm">'; });
+  ph+='</colgroup><tr class="daterow">';
+  days.forEach(function(dy){ ph+='<th colspan="'+dy.count+'">'+esc(dy.date.replace('月','/').replace('日',''))+'</th>'; });
+  ph+='</tr><tr class="periodrow">';
+  exam.slots.forEach(function(sl){ ph+='<th>'+sl.period+'限<br><span class="tm">'+esc(times['p'+sl.period]||'')+'</span></th>'; });
+  ph+='</tr>';
+  for(let r=0;r<maxRows;r++){
+    ph+='<tr>';
+    perSlot.forEach(function(entries){
+      const e=entries[r];
+      if(!e){ ph+='<td class="centry"></td>'; return; }
+      ph+='<td class="centry"><div class="rm">'+esc(e.room)+'</div><div class="sb">'+esc(e.subj)+'</div><div class="nm">'+esc(e.name)+'</div></td>';
+    });
+    ph+='</tr>';
   }
+  ph+='</table>';
+  pa.innerHTML=ph;
+  pa.querySelectorAll('td.centry').forEach(function(td){
+    fitEl(td.querySelector('.rm'), colW-2, 9, true);
+    fitEl(td.querySelector('.sb'), colW-2, 7.5, false);
+    fitEl(td.querySelector('.nm'), colW-2, 8.5, false);
+  });
 }
 function renderPrintTable(y,exam,st){
   const el=$('printArea'); if(!el) return;
@@ -956,6 +1015,11 @@ function renderPrintTable(y,exam,st){
   });
   h+='</table>';
   el.innerHTML=h;
+  el.querySelectorAll('td.name').forEach(function(td){ fitEl(td, nameW-2, fs, false); });
+  el.querySelectorAll('td.subjcell').forEach(function(td){
+    const base=fs*(td.classList.contains('multi')?0.68:0.85);
+    td.querySelectorAll('span').forEach(function(sp){ fitEl(sp, slotW-2, base, false); });
+  });
 }
 function renderExam(){
   const y=curYear(), exam=curExam();
@@ -980,6 +1044,7 @@ function renderExam(){
   renderWarnings(y,exam,st);
   renderPrintTable(y,exam,st);
   renderClassList(y,exam,st);
+  renderPrintClassGrid(y,exam,st);
   renderTeacherTable(y,exam,st);
   renderTeacherTable(y,exam,st,'teacherTable2','confirm');
   renderAssignSummary(y,exam,st);
@@ -1306,7 +1371,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
@@ -1354,7 +1419,7 @@ function exportExcel(){
   if(window.XLSX){
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa1), '教員別考査監督表');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa2), '教室別時間割');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa2), '教室別一覧表');
     XLSX.writeFile(wb, fname+'.xlsx');
   } else {
     const tbl=function(aoa){ return '<table>'+aoa.map(function(r){ return '<tr>'+r.map(function(c){ return '<td>'+esc(c)+'</td>'; }).join('')+'</tr>'; }).join('')+'</table>'; };
