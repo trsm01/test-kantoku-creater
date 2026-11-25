@@ -158,6 +158,7 @@ input[type=file]{font-size:13px}
       <div class="estep" id="estep2" style="display:none">
         <h3>② ○・休などを入力</h3>
         <div class="controls noprint">
+          <button id="btnTplSheet">この考査のひな型をダウンロード</button>
           <span class="small">教員別表Excel読込：</span>
           <input type="file" id="fileInput" accept=".xlsx,.xls">
           <span id="uploadMsg" class="small"></span>
@@ -195,6 +196,7 @@ input[type=file]{font-size:13px}
     <div class="controls noprint">
       <input type="text" id="newExamName" placeholder="新しい考査名（例：１学期 中間考査）" size="28">
       <button id="btnAddExam">考査を追加</button>
+      <button id="btnTplPlan">ひな型Excelをダウンロード</button>
       <span class="small">年間計画Excel取込：</span>
       <input type="file" id="planFile" accept=".xlsx,.xls">
       <span id="planMsg" class="small"></span>
@@ -207,6 +209,7 @@ input[type=file]{font-size:13px}
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
     <h3>② 教室割マスター（3年 選択科目 → 実施教室）</h3>
     <div class="controls noprint">
+      <button id="btnTplRooms">ひな型Excelをダウンロード</button>
       <span class="small">教室割Excel読込：</span>
       <input type="file" id="roomFile" accept=".xlsx,.xls">
       <span id="roomMsg" class="small"></span>
@@ -221,6 +224,7 @@ input[type=file]{font-size:13px}
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
     <h3>③ 教員一覧</h3>
     <div class="controls noprint">
+      <button id="btnTplTeachers">ひな型Excelをダウンロード</button>
       <span class="small">教員一覧Excel読込：</span>
       <input type="file" id="teacherListFile" accept=".xlsx,.xls">
       <span id="teacherListMsg" class="small"></span>
@@ -266,6 +270,9 @@ input[type=file]{font-size:13px}
 "use strict";
 const STANDBY_KEYS=['待機1','待機2','会議室'];
 const HR4=['3-1','3-2','3-3','3-4'];
+const HR_B=['3-2','3-3','3-4'];
+const HR_R=['3-1'];
+function trackHR(row){ return row==='b'?HR_B:HR_R; }
 const DEFAULT_SETTINGS={ g1rooms:['1-1','1-2','1-3','1-4','1-5'], g2rooms:['2-1','2-2','2-3','2-4','2-5'], times:{ p1:'9:00〜9:50', p2:'10:05〜10:55', p3:'11:10〜12:00', p4:'12:15〜13:05' } };
 const DEFAULT_MASTER=[
  {pattern:'フードデザイン',rooms:['3-2','3-4'],row:'any'},
@@ -287,7 +294,7 @@ const DEFAULT_MASTER=[
  {pattern:'化学',rooms:['3-2','3-3','3-4'],row:'b'},
  {pattern:'文学国語',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
  {pattern:'論理国語',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
- {pattern:'総合古典',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
+ {pattern:'総合古典',rooms:['3-2','3-3','3-4'],row:'b'},
  {pattern:'英語ＣⅢ',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
  {pattern:'英語CⅢ',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
  {pattern:'論理表現Ⅱ',rooms:['3-1','3-2','3-3','3-4'],row:'any'},
@@ -317,7 +324,7 @@ function grade3Rooms(bun,ri,master){
     splitSubjects(s).forEach(function(t){
       const m=matchMaster(t,row,master);
       if(m) m.rooms.forEach(function(r){ set.add(r); });
-      else { HR4.forEach(function(r){ set.add(r); }); fallback=true; }
+      else { trackHR(row).forEach(function(r){ set.add(r); }); fallback=true; }
     });
   });
   const order=['3-1','3-2','3-3','3-4','3階講義室'];
@@ -346,7 +353,7 @@ function roomSubjects(slot,cfg){
     splitSubjects(pair[0]).forEach(function(t){
       const m=matchMaster(t,pair[1],master);
       if(m) m.rooms.forEach(function(r){ add(r,t); });
-      else HR4.forEach(function(r){ add(r,t); });
+      else trackHR(pair[1]).forEach(function(r){ add(r,t); });
     });
   });
   return map;
@@ -508,7 +515,13 @@ function normalizeSettings(y){
   const t=y.settings.times||{}, d=DEFAULT_SETTINGS.times;
   y.settings.times={ p1:t.p1||d.p1, p2:t.p2||d.p2, p3:t.p3||d.p3, p4:t.p4||d.p4 };
 }
-function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
+function fixMasterSeed(y){
+  if(!y||!y.master) return;
+  y.master.forEach(function(m){
+    if(m&&m.pattern==='総合古典'&&m.row==='any'&&Array.isArray(m.rooms)&&m.rooms.join(',')==='3-1,3-2,3-3,3-4'){ m.rooms=['3-2','3-3','3-4']; m.row='b'; }
+  });
+}
+function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); fixMasterSeed(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
 function buildInitialYear(initialExams){
   const first=initialExams[0];
   const teachers=first.teachers.map(function(t){ return {name:t.name, gradeRole:roleToGradeRole(t.role), division:roleToDivision(t.role), total:t.prev||0}; });
@@ -791,11 +804,116 @@ function parseRoomMasterRows(rows){
   return out.concat(extra);
 }
 
+// ---------- templates ----------
+const TPL_MARK='KSひな型';
+const TPL_MARKS=['○','休','出','授','×'];
+function tplType(rows){
+  if(!rows||!rows.length||!rows[0]) return null;
+  if(String(rows[0][0]||'').trim()!==TPL_MARK) return null;
+  return String(rows[0][1]||'').trim()||null;
+}
+function tplCell(v){ return v==null?'':String(v).trim(); }
+function tplSubj(v){
+  if(v==null||v==='') return null;
+  const parts=String(v).split(/[\/／、\n]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  return parts.length?parts.join('\n'):null;
+}
+function tplSubjDisp(v){ return v?String(v).replace(/\n/g,' / '):''; }
+function tplDateStr(v,yearNum){
+  if(v==null||v==='') return '';
+  const WD='日月火水木金土';
+  function fmt(dt){ return (dt.getMonth()+1)+'月'+dt.getDate()+'日（'+WD[dt.getDay()]+'）'; }
+  if(Object.prototype.toString.call(v)==='[object Date]'&&!isNaN(v.getTime())) return fmt(v);
+  const str=String(v).trim().replace(/\s+/g,'');
+  let m=str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(m) return fmt(new Date(+m[1],+m[2]-1,+m[3]));
+  m=str.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+  if(m){ const mo=+m[1]; const yr=yearNum?(mo>=4?yearNum:yearNum+1):2026; return fmt(new Date(yr,mo-1,+m[2])); }
+  return str;
+}
+function buildPlanTemplateAOA(y){
+  const aoa=[[TPL_MARK,'plan','v1'],['考査名','日付','時限','1年','2年','3年（文）','3年（理）']];
+  (y.exams||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl,ix){ const sj=sl.subjects||{}; aoa.push([ix===0?ex.name:'',sl.date,sl.period,tplSubjDisp(sj.g1),tplSubjDisp(sj.g2),tplSubjDisp(sj.g3b),tplSubjDisp(sj.g3r)]); }); });
+  for(let i=0;i<5;i++) aoa.push(['','','','','','','']);
+  return aoa;
+}
+function parsePlanTemplate(rows,yearNum){
+  const exams=[]; let cur=null;
+  for(let r=2;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=tplCell(row[0]), date=tplDateStr(row[1],yearNum), per=parseInt(row[2],10);
+    if(name){ cur={name:name,slots:[]}; exams.push(cur); }
+    if(!cur||!date||!(per>=1)) continue;
+    cur.slots.push({ date:date, period:per, subjects:{ g1:tplSubj(row[3]), g2:tplSubj(row[4]), g3b:tplSubj(row[5]), g3r:tplSubj(row[6]) } });
+  }
+  return exams.filter(function(e){ return e.slots.length>0; });
+}
+function buildTeachersTemplateAOA(y){
+  const aoa=[[TPL_MARK,'teachers','v1'],['氏名','学年','分掌','累計（前回迄）']];
+  (y.teachers||[]).forEach(function(t){ aoa.push([t.name,t.gradeRole||'',t.division||'',t.total||0]); });
+  for(let i=0;i<3;i++) aoa.push(['','','','']);
+  return aoa;
+}
+function parseTeachersTemplate(rows){
+  const list=[];
+  for(let r=2;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=tplCell(row[0]); if(!name) continue;
+    let gr=tplCell(row[1]); if(GRADE_ROLES.indexOf(gr)<0) gr=roleToGradeRole(gr);
+    let dv=tplCell(row[2]); if(DIVISIONS.indexOf(dv)<0) dv='';
+    if(!dv&&gr&&LEADER_DIVISION[gr]) dv=LEADER_DIVISION[gr];
+    const prev=parseInt(row[3],10);
+    list.push({ name:name, gradeRole:gr, division:dv, prev:isNaN(prev)?0:prev });
+  }
+  return list;
+}
+function buildMasterTemplateAOA(y){
+  const aoa=[[TPL_MARK,'master','v1'],['科目名','文理','実施教室']];
+  (y.master||[]).forEach(function(m){ aoa.push([m.pattern, m.row==='b'?'文':(m.row==='r'?'理':'共通'), (m.rooms||[]).join('、')]); });
+  for(let i=0;i<3;i++) aoa.push(['','','']);
+  return aoa;
+}
+function parseMasterTemplate(rows){
+  const list=[];
+  for(let r=2;r<rows.length;r++){
+    const row=rows[r]||[];
+    const pat=tplCell(row[0]); if(!pat) continue;
+    const tag=tplCell(row[1]);
+    const rowTag=tag==='文'?'b':(tag==='理'?'r':'any');
+    const rooms=tplCell(row[2]).split(/[、,，・\s]+/).filter(Boolean);
+    if(rooms.length) list.push({ pattern:pat, rooms:rooms, row:rowTag });
+  }
+  return list;
+}
+function buildSheetTemplateAOA(y,exam,st){
+  const aoa=[[TPL_MARK,'sheet','v1',exam.name],['氏名','役職'].concat(exam.slots.map(function(sl){ return sl.date+' '+sl.period+'限'; }))];
+  (y.teachers||[]).forEach(function(t,ti){
+    aoa.push([t.name, roleText(t)].concat(exam.slots.map(function(sl,si){ return (st.prefill&&st.prefill[ti]&&st.prefill[ti][si])||''; })));
+  });
+  return aoa;
+}
+function parseSheetTemplate(rows){
+  const head=rows[0]||[];
+  const marks={}; const names=[];
+  for(let r=2;r<rows.length;r++){
+    const row=rows[r]||[];
+    const name=tplCell(row[0]); if(!name) continue;
+    names.push(name);
+    const mm={};
+    for(let c=2;c<row.length;c++){
+      let v=tplCell(row[c]); if(!v) continue;
+      if(v==='〇') v='○';
+      if(TPL_MARKS.indexOf(v)>=0) mm[String(c-2)]=v;
+    }
+    marks[name]=mm;
+  }
+  return { examName:tplCell(head[3]), marks:marks, names:names, slotCols:Math.max(0,((rows[1]||[]).length)-2) };
+}
 </script>
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV18';
+const LS_KEY='examSupervisorV20';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -804,6 +922,8 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s19=JSON.parse(localStorage.getItem('examSupervisorV19')); if(s19&&s19.years&&s19.years[s19.currentYear]) return normalizeState(s19); }catch(e){}
+  try{ const s18=JSON.parse(localStorage.getItem('examSupervisorV18')); if(s18&&s18.years&&s18.years[s18.currentYear]) return normalizeState(s18); }catch(e){}
   try{ const s17=JSON.parse(localStorage.getItem('examSupervisorV17')); if(s17&&s17.years&&s17.years[s17.currentYear]) return normalizeState(s17); }catch(e){}
   try{ const s16=JSON.parse(localStorage.getItem('examSupervisorV16')); if(s16&&s16.years&&s16.years[s16.currentYear]) return normalizeState(s16); }catch(e){}
   try{ const s15=JSON.parse(localStorage.getItem('examSupervisorV15')); if(s15&&s15.years&&s15.years[s15.currentYear]) return normalizeState(s15); }catch(e){}
@@ -1387,7 +1507,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
@@ -1444,6 +1564,53 @@ function exportExcel(){
     a.download=fname+'.xls'; a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
   }
 }
+
+// ---------- template downloads ----------
+function downloadTemplate(fname, sheetName, aoa, help){
+  if(!window.XLSX){ alert('Excelのダウンロードにはネット接続が必要です（表計算ライブラリが読み込めていません）。接続してから開き直してください。'); return; }
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), sheetName);
+  if(help&&help.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(help.map(function(h){ return [h]; })), '記入方法');
+  XLSX.writeFile(wb, fname);
+}
+$('btnTplPlan').addEventListener('click',function(){
+  downloadTemplate('年間考査計画ひな型_'+state.currentYear+'年度.xlsx','考査計画',buildPlanTemplateAOA(curYear()),
+    ['年間考査計画のひな型です。今の登録内容が入っています。','1行＝1コマです。考査名はその考査の先頭行にだけ書いてください（下の行は空欄で続けてください）。','日付は「10月20日（火）」の形、時限は数字で書いてください。','同じコマに複数科目あるときは「 / 」で区切ってください（例：数学ⅢＣ / 数学理解）。','その学年・コースで試験がないコマは空欄にしてください。','記入したら、年間計画の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+});
+$('btnTplTeachers').addEventListener('click',function(){
+  downloadTemplate('教員一覧ひな型_'+state.currentYear+'年度.xlsx','教員一覧',buildTeachersTemplateAOA(curYear()),
+    ['教員一覧のひな型です。今の登録内容が入っています。','学年は「1-3」「1学年副担任」「1学年主任」「教務主任」など、アプリの選択肢と同じ表記で書いてください。','分掌は「教務」「進路」「生徒指導」「総務」のいずれかです（主任を選ぶと自動で入ります）。','累計（前回迄）は、これまでの監督回数の合計です。新規の先生は0でかまいません。','記入したら、教員一覧の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+});
+$('btnTplRooms').addEventListener('click',function(){
+  downloadTemplate('教室割ひな型_'+state.currentYear+'年度.xlsx','教室割',buildMasterTemplateAOA(curYear()),
+    ['教室割マスター（3年生）のひな型です。今の登録内容が入っています。','文理は「文」「理」「共通」のいずれかです。共通は文理どちらの時間割に出ても適用されます。','実施教室は「、」で区切って書いてください（例：3-2、3-4）。','科目名の一部が一致すれば適用され、長い科目名が優先されます。','記入したら、教室割マスターの画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+});
+$('btnTplSheet').addEventListener('click',function(){
+  const y=curYear(), exam=curExam();
+  if(!exam){ alert('先に考査を選んでください'); return; }
+  downloadTemplate('教員別表ひな型_'+state.currentYear+'年度_'+exam.name.replace(/\s/g,'')+'.xlsx','教員別表',buildSheetTemplateAOA(y,exam,examStateOf(y,exam.id)),
+    ['「'+exam.name+'」の教員別表ひな型です。今の事前記入が入っています。','各コマのセルに ○（試験作成者・巡回）・休（年休）・出（出張）・授（授業）・×（非勤務日）だけを記入してください。','空欄は「そのコマに入れる」扱いです。氏名とコマの並びは変えないでください。','記入したら、監督表作成のステップ②でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+});
+function applySheetTemplate(rows){
+  const msg=$('uploadMsg');
+  const parsed=parseSheetTemplate(rows);
+  const y=curYear();
+  const exam=y.exams.find(function(e){ return e.name===parsed.examName; })||curExam();
+  if(!exam){ msg.textContent='対象の考査が見つかりませんでした。'; return; }
+  if(parsed.slotCols!==exam.slots.length){ msg.textContent='コマ数が考査と一致しません（ひな型：'+parsed.slotCols+'コマ／考査：'+exam.slots.length+'コマ）。'; return; }
+  const st=examStateOf(y,exam.id);
+  if(st.confirmed){ msg.textContent='確定済みの考査には読み込めません。'; return; }
+  const unknown=[]; const prefill={};
+  Object.keys(parsed.marks).forEach(function(name){
+    const ti=y.teachers.findIndex(function(t){ return t.name===name; });
+    if(ti<0){ unknown.push(name); return; }
+    prefill[String(ti)]=parsed.marks[name];
+  });
+  st.prefill=prefill; st.assignments={};
+  state.currentExamId=exam.id;
+  saveState(); render();
+  msg.textContent='ひな型から読み込みました：'+exam.name+'（'+Object.keys(prefill).length+'名分）'+(unknown.length?('／教員一覧にない氏名：'+unknown.join('、')):'');
+}
 // ---------- upload helpers ----------
 function readWorkbookRows(file, preferredSheet, cb){
   if(!window.XLSX){ cb(null,'SheetJSが読み込めていないため、Excel読込はできません（ネット接続時に再試行してください）。'); return; }
@@ -1464,6 +1631,7 @@ $('fileInput').addEventListener('change',function(){
   const msg=$('uploadMsg');
   readWorkbookRows(f,'教員別考査監督表',function(rows,err){
     if(err){ msg.textContent=err; return; }
+    if(tplType(rows)==='sheet'){ applySheetTemplate(rows); return; }
     const parsed=parseTeacherSheet(rows);
     if(!parsed||parsed.teachers.length===0){ msg.textContent='読み取れませんでした（教員別表の形式を確認してください）。'; return; }
     const y=curYear();
@@ -1511,8 +1679,19 @@ $('planFile').addEventListener('change',function(){
   const msg=$('planMsg');
   readWorkbookRows(f,'年間考査計画表',function(rows,err){
     if(err){ msg.textContent=err+'手入力で続けてください。'; return; }
+    if(tplType(rows)==='plan'){
+      const texams=parsePlanTemplate(rows, parseInt(state.currentYear,10));
+      if(!texams.length){ msg.textContent='ひな型から読み取れませんでした（日付と時限を確認してください）。'; return; }
+      showPlanImport(texams); return;
+    }
     const exams=parseAnnualPlanRows(rows);
     if(!exams.length){ msg.textContent='年間計画の形式を読み取れませんでした。手入力で続けてください。'; return; }
+    showPlanImport(exams);
+  });
+  this.value='';
+});
+function showPlanImport(exams){
+    const msg=$('planMsg');
     pendingPlan=exams;
     const total=exams.reduce(function(n,e){ return n+e.slots.length; },0);
     msg.textContent='';
@@ -1526,17 +1705,26 @@ $('planFile').addEventListener('change',function(){
     });
     $('piAdd').addEventListener('click',function(){ panel.innerHTML=''; applyPlanImport(exams,false); });
     $('piCancel').addEventListener('click',function(){ pendingPlan=null; panel.innerHTML=''; msg.textContent='取り込みをやめました'; });
-  });
-  this.value='';
-});
+}
 // ---------- import: teacher list ----------
 $('teacherListFile').addEventListener('change',function(){
   const f=this.files[0]; if(!f) return;
   const msg=$('teacherListMsg');
   readWorkbookRows(f,'教員別考査監督表',function(rows,err){
     if(err){ msg.textContent=err; return; }
+    if(tplType(rows)==='teachers'){
+      const tlist=parseTeachersTemplate(rows);
+      if(!tlist.length){ msg.textContent='ひな型から読み取れませんでした（氏名を確認してください）。'; return; }
+      applyTeacherListImport(tlist); return;
+    }
     const list=parseTeacherListRows(rows);
     if(!list.length){ msg.textContent='読み取れませんでした（教員別表、または氏名のある一覧表にしてください）。'; return; }
+    applyTeacherListImport(list);
+  });
+  this.value='';
+});
+function applyTeacherListImport(list){
+    const msg=$('teacherListMsg');
     if(!confirm('教員'+list.length+'名を読み取りました。教員一覧を置き換えますか？（各考査の割当・事前記入・確定はクリアされ、累計は読み取った値になります）')){
       msg.textContent='取り込みをやめました（'+list.length+'名を読み取り）'; return;
     }
@@ -1545,9 +1733,7 @@ $('teacherListFile').addEventListener('change',function(){
     Object.keys(y.examStates).forEach(function(id){ y.examStates[id]={prefill:{},assignments:{},confirmed:false,snapshot:null}; });
     saveState(); render();
     $('teacherListMsg').textContent='取り込みました：教員'+list.length+'名';
-  });
-  this.value='';
-});
+}
 // ---------- import: room master ----------
 let pendingRooms=null;
 function applyRoomImport(entries,replace){
@@ -1568,8 +1754,19 @@ $('roomFile').addEventListener('change',function(){
   const msg=$('roomMsg');
   readWorkbookRows(f,null,function(rows,err){
     if(err){ msg.textContent=err; return; }
+    if(tplType(rows)==='master'){
+      const tentries=parseMasterTemplate(rows);
+      if(!tentries.length){ msg.textContent='ひな型から読み取れませんでした（科目名と実施教室を確認してください）。'; return; }
+      showRoomImport(tentries); return;
+    }
     const entries=parseRoomMasterRows(rows);
     if(!entries.length){ msg.textContent='読み取れませんでした（科目と考査実施教室のある表にしてください）。'; return; }
+    showRoomImport(entries);
+  });
+  this.value='';
+});
+function showRoomImport(entries){
+    const msg=$('roomMsg');
     pendingRooms=entries;
     msg.textContent='';
     const panel=$('roomImportPanel');
@@ -1582,9 +1779,7 @@ $('roomFile').addEventListener('change',function(){
     });
     $('riAdd').addEventListener('click',function(){ panel.innerHTML=''; applyRoomImport(entries,false); });
     $('riCancel').addEventListener('click',function(){ pendingRooms=null; panel.innerHTML=''; msg.textContent='取り込みをやめました'; });
-  });
-  this.value='';
-});
+}
 
 // ---------- login / year ----------
 function openYearModal(){
