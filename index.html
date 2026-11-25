@@ -34,6 +34,12 @@ button.step{cursor:pointer;font:inherit;text-align:left}
 .homecard .hc-title{font-size:24px;font-weight:bold;color:#1f4e79}
 .homecard .hc-sub{font-size:13px;color:#555}
 main{padding:12px 14px 30px}
+#printArea{display:none}
+#printArea h2{font-size:16pt;margin:0 0 6px;color:#000}
+#printArea table{table-layout:fixed}
+#printArea th,#printArea td{border:1px solid #333;color:#000;white-space:normal;word-break:break-all}
+#printArea th{background:#e8e8e8}
+#printArea td.sum,#printArea th.sum{background:#f3f6fa;font-weight:bold}
 table{border-collapse:collapse;background:#fff;width:100%}
 th,td{border:1px solid #c9d1d9;padding:3px 4px;text-align:center;white-space:nowrap;font-size:12.5px}
 th{background:#dbe7f3}
@@ -69,15 +75,12 @@ input[type=file]{font-size:13px}
 .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
 .subtabs{display:flex;gap:6px;margin:6px 0 10px}
 @media print{
+  @page{ size:A3 portrait; margin:10mm; }
   header,nav,.noprint,.controls,.subtabs{display:none!important}
   body{background:#fff}
   main{padding:0}
   .view{display:none!important}
-  .view.printtarget{display:block!important}
-  table{font-size:11px}
-  .stepnav{display:none!important}
-  .estep{display:none!important}
-  #estep4{display:block!important}
+  #printArea{display:block!important}
 }
 </style>
 </head>
@@ -147,12 +150,13 @@ input[type=file]{font-size:13px}
         <h3>⑤ 確定</h3>
         <p id="confirmInfo"></p>
         <p><button class="primary" id="btnConfirm">確定</button> <button id="btnPrint">印刷</button> <button id="btnExcel">Excel出力</button></p>
-        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷ではステップ④の一覧表が出ます。</p>
+        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷では、A3縦向き1枚に収まるよう幅と文字サイズを自動調整した一覧表が出ます（コマの列幅は全て同じ、右端に今回・累計・合計）。</p>
         <p class="stepnav noprint"><button data-go="4">← 戻る</button></p>
       </div>
       </div>
     </div>
   </section>
+  <div id="printArea"></div>
   <section id="view-plan" class="view" style="display:none">
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
     <h3>① 年間考査計画</h3>
@@ -722,7 +726,7 @@ function parseRoomMasterRows(rows){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV10';
+const LS_KEY='examSupervisorV11';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -731,6 +735,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s10=JSON.parse(localStorage.getItem('examSupervisorV10')); if(s10&&s10.years&&s10.years[s10.currentYear]) return normalizeState(s10); }catch(e){}
   try{ const s9=JSON.parse(localStorage.getItem('examSupervisorV9')); if(s9&&s9.years&&s9.years[s9.currentYear]) return normalizeState(s9); }catch(e){}
   try{ const s8=JSON.parse(localStorage.getItem('examSupervisorV8')); if(s8&&s8.years&&s8.years[s8.currentYear]) return normalizeState(s8); }catch(e){}
   try{ const s7=JSON.parse(localStorage.getItem('examSupervisorV7')); if(s7&&s7.years&&s7.years[s7.currentYear]) return normalizeState(s7); }catch(e){}
@@ -796,6 +801,38 @@ function renderAssignSummary(y,exam,st){
   const w=computeWarnings(eObj, st.assignments, cfgOf(y));
   el.innerHTML='<p>割当済みです。今回の監督数： <strong>'+Math.min.apply(null,counts)+'〜'+Math.max.apply(null,counts)+'回</strong>'+(w.length?'／ ⚠ 空欄 '+w.length+'件（次の画面で確認できます）':'／ 空欄なし')+'</p>';
 }
+function renderPrintTable(y,exam,st){
+  const el=$('printArea'); if(!el) return;
+  const eObj=examForAssign(y,exam), teachers=eObj.teachers;
+  const counts=computeCounts(eObj, st.assignments);
+  const label={};
+  Object.keys(st.assignments).forEach(function(si){
+    const a=st.assignments[si];
+    Object.keys(a).forEach(function(k){ if(typeof a[k]==='number'){ (label[a[k]]=label[a[k]]||{})[si]=k; } });
+  });
+  const n=Math.max(exam.slots.length,1);
+  const totalW=277, nameW=24, roleW=18, sumW=10;
+  const slotW=Math.floor(((totalW-nameW-roleW-sumW*3)/n)*10)/10;
+  let fs=10; if(slotW<17) fs=9; if(slotW<14) fs=8; if(slotW<11) fs=7; if(slotW<9) fs=6.5;
+  let h='<h2>'+esc(state.currentYear)+'年度 '+esc(exam.name)+' 監督表</h2>';
+  h+='<table style="font-size:'+fs+'pt"><colgroup><col style="width:'+nameW+'mm"><col style="width:'+roleW+'mm">';
+  exam.slots.forEach(function(){ h+='<col style="width:'+slotW+'mm">'; });
+  h+='<col style="width:'+sumW+'mm"><col style="width:'+sumW+'mm"><col style="width:'+sumW+'mm"></colgroup>';
+  h+='<tr><th class="name">教員</th><th>役職</th>';
+  exam.slots.forEach(function(sl){ h+='<th>'+esc(sl.date.replace('月','/').replace('日',''))+'<br>'+sl.period+'限</th>'; });
+  h+='<th class="sum">今回</th><th class="sum">累計</th><th class="sum">合計</th></tr>';
+  teachers.forEach(function(t,ti){
+    h+='<tr><td class="name">'+esc(t.name)+'</td><td>'+esc(t.role||'')+'</td>';
+    exam.slots.forEach(function(sl,si){
+      const mk=markAt(st.prefill,ti,si);
+      const lb=(label[ti]&&label[ti][si])||'';
+      h+='<td>'+esc(mk||lb)+'</td>';
+    });
+    h+='<td class="sum">'+counts[ti]+'</td><td class="sum">'+t.prev+'</td><td class="sum">'+(t.prev+counts[ti])+'</td></tr>';
+  });
+  h+='</table>';
+  el.innerHTML=h;
+}
 function renderExam(){
   const y=curYear(), exam=curExam();
   const sel=$('examSelect'); sel.innerHTML='';
@@ -817,6 +854,7 @@ function renderExam(){
   $('examOutline').textContent=examOutline(exam);
   $('confirmInfo').textContent=locked?'確定済みです（ロック中）。内容を変更するには「確定解除」を押してください。':'まだ確定していません。内容を確認してから「確定」を押してください。';
   renderWarnings(y,exam,st);
+  renderPrintTable(y,exam,st);
   renderTeacherTable(y,exam,st);
   renderTeacherTable(y,exam,st,'teacherTable2','confirm');
   renderAssignSummary(y,exam,st);
@@ -1129,7 +1167,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
