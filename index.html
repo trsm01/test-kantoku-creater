@@ -40,7 +40,11 @@ main{padding:12px 14px 30px}
 #printArea th,#printArea td{border:1px solid #333;color:#000;white-space:normal;word-break:break-all}
 #printArea th{background:#e8e8e8}
 #printArea td.sum,#printArea th.sum{background:#f3f6fa;font-weight:bold}
-#printArea .subj{font-weight:normal;text-align:left;border-top:1px solid #999;margin-top:2px;padding-top:2px;line-height:1.3;font-size:85%}
+#printArea tr.daterow th{height:8mm}
+#printArea tr.periodrow th{height:6mm}
+#printArea tr.subjrow th,#printArea tr.subjrow td{height:6.5mm;font-size:85%}
+#printArea th.glabel{text-align:left}
+#printArea td.subjcell{text-align:left}
 table{border-collapse:collapse;background:#fff;width:100%}
 th,td{border:1px solid #c9d1d9;padding:3px 4px;text-align:center;white-space:nowrap;font-size:12.5px}
 th{background:#dbe7f3}
@@ -742,7 +746,7 @@ function parseRoomMasterRows(rows){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV12';
+const LS_KEY='examSupervisorV13';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -751,6 +755,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s12=JSON.parse(localStorage.getItem('examSupervisorV12')); if(s12&&s12.years&&s12.years[s12.currentYear]) return normalizeState(s12); }catch(e){}
   try{ const s11=JSON.parse(localStorage.getItem('examSupervisorV11')); if(s11&&s11.years&&s11.years[s11.currentYear]) return normalizeState(s11); }catch(e){}
   try{ const s10=JSON.parse(localStorage.getItem('examSupervisorV10')); if(s10&&s10.years&&s10.years[s10.currentYear]) return normalizeState(s10); }catch(e){}
   try{ const s9=JSON.parse(localStorage.getItem('examSupervisorV9')); if(s9&&s9.years&&s9.years[s9.currentYear]) return normalizeState(s9); }catch(e){}
@@ -836,16 +841,19 @@ function renderPrintTable(y,exam,st){
   exam.slots.forEach(function(){ h+='<col style="width:'+slotW+'mm">'; });
   for(let k=0;k<6;k++) h+='<col style="width:'+sumW+'mm">';
   h+='</colgroup>';
-  h+='<tr><th class="name">教員</th><th>役職</th>';
-  exam.slots.forEach(function(sl){
-    const sb=sl.subjects||{}; const lines=[];
-    if(sb.g1) lines.push('1年 '+String(sb.g1).replace(/\n/g,'・'));
-    if(sb.g2) lines.push('2年 '+String(sb.g2).replace(/\n/g,'・'));
-    if(sb.g3b) lines.push('3年（文） '+String(sb.g3b).replace(/\n/g,'・'));
-    if(sb.g3r) lines.push('3年（理） '+String(sb.g3r).replace(/\n/g,'・'));
-    h+='<th>'+esc(sl.date.replace('月','/').replace('日',''))+'<br>'+sl.period+'限'+(lines.length?'<div class="subj">'+lines.map(function(x){return esc(x);}).join('<br>')+'</div>':'')+'</th>';
+  const days=[];
+  exam.slots.forEach(function(sl){ const last=days[days.length-1]; if(last&&last.date===sl.date) last.count++; else days.push({date:sl.date,count:1}); });
+  h+='<tr class="daterow"><th class="name" rowspan="6">教員</th><th rowspan="6">役職</th>';
+  days.forEach(function(dy){ h+='<th colspan="'+dy.count+'">'+esc(dy.date.replace('月','/').replace('日',''))+'</th>'; });
+  h+='<th class="sum" rowspan="6">監督</th><th class="sum" rowspan="6">臨時</th><th class="sum" rowspan="6">出張</th><th class="sum" rowspan="6">考係</th><th class="sum" rowspan="6">前回迄</th><th class="sum" rowspan="6">合計</th></tr>';
+  h+='<tr class="periodrow">';
+  exam.slots.forEach(function(sl){ h+='<th>'+sl.period+'限</th>'; });
+  h+='</tr>';
+  [['g1','1年'],['g2','2年'],['g3b','3年（文）'],['g3r','3年（理）']].forEach(function(pair){
+    h+='<tr class="subjrow"><th class="glabel" colspan="2">'+pair[1]+'</th>';
+    exam.slots.forEach(function(sl){ const v=sl.subjects&&sl.subjects[pair[0]]; h+='<td class="subjcell">'+(v?esc(String(v).replace(/\n/g,'・')):'')+'</td>'; });
+    h+='</tr>';
   });
-  h+='<th class="sum">監督</th><th class="sum">臨時</th><th class="sum">出張</th><th class="sum">考係</th><th class="sum">前回迄</th><th class="sum">合計</th></tr>';
   teachers.forEach(function(t,ti){
     h+='<tr><td class="name">'+esc(t.name)+'</td><td>'+esc(t.role||'')+'</td>';
     exam.slots.forEach(function(sl,si){
@@ -1195,7 +1203,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
