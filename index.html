@@ -35,6 +35,12 @@ button.step{cursor:pointer;font:inherit;text-align:left}
 .homecard .hc-sub{font-size:13px;color:#555}
 main{padding:12px 14px 30px}
 #printArea{display:none}
+#printClassArea{display:none}
+#printClassArea h2{font-size:16pt;margin:0 0 6px;color:#000}
+#printClassArea table{table-layout:fixed}
+#printClassArea th,#printClassArea td{border:1px solid #333;color:#000;padding:2px 4px;text-align:left;white-space:normal;word-break:break-all}
+#printClassArea th{background:#e8e8e8}
+#printClassArea .slothead{background:#dbe7f3;font-weight:bold}
 #printArea h2{font-size:16pt;margin:0 0 6px;color:#000}
 #printArea table{table-layout:fixed}
 #printArea th,#printArea td{border:1px solid #333;color:#000;white-space:normal;word-break:break-all}
@@ -97,6 +103,7 @@ input[type=file]{font-size:13px}
   main{padding:0}
   .view{display:none!important}
   #printArea{display:block!important}
+  #printClassArea{display:block!important;page-break-before:always}
 }
 </style>
 </head>
@@ -159,6 +166,8 @@ input[type=file]{font-size:13px}
         <div id="warnArea"></div>
         <div class="scroll"><table id="teacherTable2"></table></div>
         <p class="small">セルをタップすると、そのコマの監督者を選び直したり、○・休などの記入を変更できます。</p>
+        <h3 style="margin-top:20px">教室別一覧表</h3>
+        <div class="scroll"><table id="classListTable"></table></div>
         <p class="noprint"><button id="btnShuffle">再割当（シャッフル）</button> <button class="danger" id="btnClear">割当クリア</button> <span class="small">割り当て直すときは、上の手順バーの「3 自動割当」からもできます。</span></p>
         <p class="stepnav noprint"><button data-go="2">← 戻る</button> <button class="primary" data-go="5">次へ：確定 →</button></p>
       </div>
@@ -166,13 +175,14 @@ input[type=file]{font-size:13px}
         <h3>⑤ 確定</h3>
         <p id="confirmInfo"></p>
         <p><button class="primary" id="btnConfirm">確定</button> <button id="btnPrint">印刷</button> <button id="btnExcel">Excel出力</button></p>
-        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷では、A3縦向き1枚に収まるよう幅と文字サイズを自動調整した一覧表が出ます（コマの列幅は全て同じ、各コマに学年別の科目名入り、右端に監督・臨時・出張・考係・前回迄・合計）。</p>
+        <p class="small">確定すると今回の監督数が年度累計に加算され、表はロックされます。印刷・Excel出力は確定後でもできます。印刷では、A3縦向き1枚に収まるよう幅と文字サイズを自動調整した監督表が出て、続けて教室別一覧表も出ます（どちらも同じ割当データから作るので、内容は必ず一致します）。</p>
         <p class="stepnav noprint"><button data-go="4">← 戻る</button></p>
       </div>
       </div>
     </div>
   </section>
   <div id="printArea"></div>
+  <div id="printClassArea"></div>
   <section id="view-plan" class="view" style="display:none">
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
     <h3>① 年間考査計画</h3>
@@ -317,6 +327,23 @@ function roomsForSlot(slot,cfg){
   if(sub.g2 && !isRegularLabel(sub.g2)) settings.g2rooms.forEach(function(r){ rooms.push(r); });
   if(sub.g3b||sub.g3r){ const g=grade3Rooms(sub.g3b,sub.g3r,master); g.rooms.forEach(function(r){ rooms.push(r); }); fallback=g.fallback; }
   return { rooms: rooms, fallback: fallback };
+}
+function roomSubjects(slot,cfg){
+  const settings=(cfg&&cfg.settings)||DEFAULT_SETTINGS;
+  const master=(cfg&&cfg.master)||DEFAULT_MASTER;
+  const sub=(slot&&slot.subjects)||{}; const map={};
+  function add(room,subj){ if(!map[room]) map[room]=[]; if(map[room].indexOf(subj)<0) map[room].push(subj); }
+  if(sub.g1 && !isRegularLabel(sub.g1)) settings.g1rooms.forEach(function(r){ splitSubjects(sub.g1).forEach(function(t){ add(r,t); }); });
+  if(sub.g2 && !isRegularLabel(sub.g2)) settings.g2rooms.forEach(function(r){ splitSubjects(sub.g2).forEach(function(t){ add(r,t); }); });
+  [[sub.g3b,'b'],[sub.g3r,'r']].forEach(function(pair){
+    if(!pair[0]) return;
+    splitSubjects(pair[0]).forEach(function(t){
+      const m=matchMaster(t,pair[1],master);
+      if(m) m.rooms.forEach(function(r){ add(r,t); });
+      else HR4.forEach(function(r){ add(r,t); });
+    });
+  });
+  return map;
 }
 function teacherStats(exam, st, ti, sup, prev){
   let shukko=0; const oDays={};
@@ -762,7 +789,7 @@ function parseRoomMasterRows(rows){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV14';
+const LS_KEY='examSupervisorV15';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -771,6 +798,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s14=JSON.parse(localStorage.getItem('examSupervisorV14')); if(s14&&s14.years&&s14.years[s14.currentYear]) return normalizeState(s14); }catch(e){}
   try{ const s13=JSON.parse(localStorage.getItem('examSupervisorV13')); if(s13&&s13.years&&s13.years[s13.currentYear]) return normalizeState(s13); }catch(e){}
   try{ const s12=JSON.parse(localStorage.getItem('examSupervisorV12')); if(s12&&s12.years&&s12.years[s12.currentYear]) return normalizeState(s12); }catch(e){}
   try{ const s11=JSON.parse(localStorage.getItem('examSupervisorV11')); if(s11&&s11.years&&s11.years[s11.currentYear]) return normalizeState(s11); }catch(e){}
@@ -839,6 +867,45 @@ function renderAssignSummary(y,exam,st){
   const counts=computeCounts(eObj, st.assignments);
   const w=computeWarnings(eObj, st.assignments, cfgOf(y));
   el.innerHTML='<p>割当済みです。今回の監督数： <strong>'+Math.min.apply(null,counts)+'〜'+Math.max.apply(null,counts)+'回</strong>'+(w.length?'／ ⚠ 空欄 '+w.length+'件（次の画面で確認できます）':'／ 空欄なし')+'</p>';
+}
+function classListRows(y,exam,st){
+  const cfg=cfgOf(y), eObj=examForAssign(y,exam), teachers=eObj.teachers;
+  const times=(y.settings&&y.settings.times)||{};
+  const rows=[];
+  exam.slots.forEach(function(slot,si){
+    const info=roomsForSlot(slot,cfg);
+    const rs=roomSubjects(slot,cfg); const a=st.assignments[si]||{};
+    rows.push({ head: slot.date+' '+slot.period+'限（'+(times['p'+slot.period]||'')+'）' });
+    if(info.rooms.length===0) rows.push({ room:'―', subj:'試験なし', name:'' });
+    info.rooms.concat(STANDBY_KEYS).forEach(function(room){
+      const isStandby=STANDBY_KEYS.indexOf(room)>=0;
+      rows.push({ room:room, subj:isStandby?'―':(((rs[room]||[]).join('・'))||'―'), name:(typeof a[room]==='number'&&teachers[a[room]])?teachers[a[room]].name:'' });
+    });
+  });
+  return rows;
+}
+function renderClassList(y,exam,st){
+  const rows=classListRows(y,exam,st);
+  const tbl=$('classListTable');
+  if(tbl){
+    let h='<tr><th style="text-align:left">教室</th><th style="text-align:left">科目</th><th style="text-align:left">監督者</th></tr>';
+    rows.forEach(function(r){
+      if(r.head) h+='<tr><th colspan="3" style="text-align:left;background:#eef3f8">'+esc(r.head)+'</th></tr>';
+      else h+='<tr><td style="text-align:left">'+esc(r.room)+'</td><td style="text-align:left">'+esc(r.subj)+'</td><td style="text-align:left">'+esc(r.name)+'</td></tr>';
+    });
+    tbl.innerHTML=h;
+  }
+  const pa=$('printClassArea');
+  if(pa){
+    let ph='<h2>'+esc(state.currentYear)+'年度 '+esc(exam.name)+' 教室別一覧表</h2><table><colgroup><col style="width:36mm"><col><col style="width:44mm"></colgroup>';
+    ph+='<tr><th>教室</th><th>科目</th><th>監督者</th></tr>';
+    rows.forEach(function(r){
+      if(r.head) ph+='<tr><th class="slothead" colspan="3">'+esc(r.head)+'</th></tr>';
+      else ph+='<tr><td>'+esc(r.room)+'</td><td>'+esc(r.subj)+'</td><td>'+esc(r.name)+'</td></tr>';
+    });
+    ph+='</table>';
+    pa.innerHTML=ph;
+  }
 }
 function renderPrintTable(y,exam,st){
   const el=$('printArea'); if(!el) return;
@@ -912,6 +979,7 @@ function renderExam(){
   $('confirmInfo').textContent=locked?'確定済みです（ロック中）。内容を変更するには「確定解除」を押してください。':'まだ確定していません。内容を確認してから「確定」を押してください。';
   renderWarnings(y,exam,st);
   renderPrintTable(y,exam,st);
+  renderClassList(y,exam,st);
   renderTeacherTable(y,exam,st);
   renderTeacherTable(y,exam,st,'teacherTable2','confirm');
   renderAssignSummary(y,exam,st);
@@ -1238,7 +1306,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ curYear().master.push({pattern:'',rooms:[],row:'any'}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
@@ -1270,8 +1338,10 @@ function classTableAOA(y,exam,st){
   exam.slots.forEach(function(slot,si){
     const info=roomsForSlot(slot,cfg); const a=st.assignments[si]||{};
     if(info.rooms.length===0) return;
+    const rs=roomSubjects(slot,cfg);
     info.rooms.concat(STANDBY_KEYS).forEach(function(room){
-      aoa.push([slot.date,slot.period,room, typeof a[room]==='number'?teachers[a[room]].name:'', subjText(slot)]);
+      const isStandby=STANDBY_KEYS.indexOf(room)>=0;
+      aoa.push([slot.date,slot.period,room, typeof a[room]==='number'?teachers[a[room]].name:'', isStandby?'':((rs[room]||[]).join('・'))]);
     });
   });
   return aoa;
