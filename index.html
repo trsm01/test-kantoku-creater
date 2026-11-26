@@ -143,7 +143,7 @@ input[type=file]{font-size:13px}
       <button class="homecard" data-basic="plan"><span class="stepnum">1</span><span class="hc-title">年間計画</span><span class="hc-sub">考査の日程・時間割の登録</span></button>
       <button class="homecard" data-basic="rooms"><span class="stepnum">2</span><span class="hc-title">科目登録</span><span class="hc-sub">科目と実施教室の登録</span></button>
       <button class="homecard" data-basic="teachers"><span class="stepnum">3</span><span class="hc-title">教員一覧</span><span class="hc-sub">氏名・学年・分掌の登録</span></button>
-      <button class="homecard" data-basic="settings"><span class="stepnum">4</span><span class="hc-title">教室・時間</span><span class="hc-sub">1・2年の教室と試験時間</span></button>
+      <button class="homecard" data-basic="settings"><span class="stepnum">4</span><span class="hc-title">教室・時間</span><span class="hc-sub">1・2年のHR教室と試験時間</span></button>
       <button class="homecard" data-basic="year"><span class="stepnum">5</span><span class="hc-title">年度管理</span><span class="hc-sub">年度の追加・切替</span></button>
     </div>
   </section>
@@ -236,7 +236,7 @@ input[type=file]{font-size:13px}
     <div id="roomImportPanel"></div>
     <div id="unregArea"></div>
     <div class="scroll"><table id="masterTable" style="width:auto"></table></div>
-    <p class="noprint"><button id="btnAddMaster">科目を追加</button> <span class="small">時間割の科目は、ここに登録したものから選んで入力します。実施教室は科目ごとに決まります（例：保健（1年）→ 1-1,1-2,1-3,1-4,1-5）。</span></p>
+    <p class="noprint"><button id="btnAddMaster">科目を追加</button> <span class="small">時間割の科目は、ここに登録したものから選んで入力します。1・2年の科目は通常「全HR（自動）」で、その学年の全教室で実施します。一部の教室だけで行う科目は「教室を指定」で変更できます。</span></p>
   </section>
 
   <section id="view-teachers" class="view" style="display:none">
@@ -258,8 +258,8 @@ input[type=file]{font-size:13px}
     <p class="noprint"><button class="backbasic">← 基本設定</button></p>
     <h3>④ 教室・試験時間</h3>
     <table style="width:auto">
-      <tr><th>1年の教室（カンマ区切り）</th><td><input type="text" id="setG1" size="42"></td></tr>
-      <tr><th>2年の教室（カンマ区切り）</th><td><input type="text" id="setG2" size="42"></td></tr>
+      <tr><th>1年のHR教室（カンマ区切り）</th><td><input type="text" id="setG1" size="42"></td></tr>
+      <tr><th>2年のHR教室（カンマ区切り）</th><td><input type="text" id="setG2" size="42"></td></tr>
       <tr><th>試験時間（1時間目）</th><td><input type="text" id="setTimeP1" size="20"></td></tr>
       <tr><th>試験時間（2時間目）</th><td><input type="text" id="setTimeP2" size="20"></td></tr>
       <tr><th>試験時間（3時間目）</th><td><input type="text" id="setTimeP3" size="20"></td></tr>
@@ -348,6 +348,11 @@ function findSubject(subjects, track, token){
   }
   return null;
 }
+function entryRooms(e, track, settings){
+  if(e&&e.rooms&&e.rooms.length) return e.rooms;
+  if(track==='1年'||track==='2年') return trackRoomsFallback(track, settings);
+  return null;
+}
 function trackRoomsFallback(track, settings){
   if(track==='1年') return (settings&&settings.g1rooms)||[];
   if(track==='2年') return (settings&&settings.g2rooms)||[];
@@ -363,7 +368,8 @@ function roomsForSlot(slot,cfg){
     const val=sub[pair[0]]; if(!val||isRegularLabel(val)) return;
     splitSubjects(val).forEach(function(t){
       const e=findSubject(subjects,pair[1],t);
-      if(e) e.rooms.forEach(function(r){ set.add(r); });
+      const rs=e?entryRooms(e,pair[1],settings):null;
+      if(rs) rs.forEach(function(r){ set.add(r); });
       else { trackRoomsFallback(pair[1],settings).forEach(function(r){ set.add(r); }); fallback=true; }
     });
   });
@@ -381,7 +387,7 @@ function roomSubjects(slot,cfg){
     const val=sub[pair[0]]; if(!val||isRegularLabel(val)) return;
     splitSubjects(val).forEach(function(t){
       const e=findSubject(subjects,pair[1],t);
-      const rooms=e?e.rooms:trackRoomsFallback(pair[1],settings);
+      const rooms=(e&&entryRooms(e,pair[1],settings))||trackRoomsFallback(pair[1],settings);
       rooms.forEach(function(r){ add(r,t); });
     });
   });
@@ -483,18 +489,27 @@ function unregisteredSubjects(exams,subjects){
   });
   return list;
 }
+function normalizeSubjectRooms(y){
+  const st=y.settings||DEFAULT_SETTINGS;
+  (y.subjects||[]).forEach(function(m){
+    if((m.track==='1年'||m.track==='2年')&&m.rooms&&m.rooms.length){
+      const full=m.track==='1年'?(st.g1rooms||[]):(st.g2rooms||[]);
+      if(m.rooms.length===full.length&&m.rooms.every(function(r){ return full.indexOf(r)>=0; })) m.rooms=null;
+    }
+  });
+}
 function buildSubjectsRegistry(y){
   const subjects=[]; const idx={};
   const master=(y&&y.master)||DEFAULT_MASTER;
   const settings=(y&&y.settings)||DEFAULT_SETTINGS;
   function add(name,track,rooms){
     const key=track+'|'+subjKey(name);
-    if(idx[key]){ (rooms||[]).forEach(function(r){ if(idx[key].rooms.indexOf(r)<0) idx[key].rooms.push(r); }); return; }
-    const e={name:name,track:track,rooms:(rooms||[]).slice()}; idx[key]=e; subjects.push(e);
+    if(idx[key]){ if(rooms&&idx[key].rooms){ rooms.forEach(function(r){ if(idx[key].rooms.indexOf(r)<0) idx[key].rooms.push(r); }); } return; }
+    const e={name:name,track:track,rooms:rooms?rooms.slice():null}; idx[key]=e; subjects.push(e);
   }
   ((y&&y.exams)||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl){ const sj=sl.subjects||{};
-    splitSubjects(sj.g1).forEach(function(t){ if(!isRegularLabel(t)) add(t,'1年',settings.g1rooms||[]); });
-    splitSubjects(sj.g2).forEach(function(t){ if(!isRegularLabel(t)) add(t,'2年',settings.g2rooms||[]); });
+    splitSubjects(sj.g1).forEach(function(t){ if(!isRegularLabel(t)) add(t,'1年',null); });
+    splitSubjects(sj.g2).forEach(function(t){ if(!isRegularLabel(t)) add(t,'2年',null); });
   }); });
   const g3={};
   ((y&&y.exams)||[]).forEach(function(ex){ (ex.slots||[]).forEach(function(sl){ const sj=sl.subjects||{};
@@ -583,7 +598,7 @@ function fixMasterSeed(y){
     if(m&&m.pattern==='総合古典'&&m.row==='any'&&Array.isArray(m.rooms)&&m.rooms.join(',')==='3-1,3-2,3-3,3-4'){ m.rooms=['3-2','3-3','3-4']; m.row='b'; }
   });
 }
-function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); fixMasterSeed(y); if(!y.subjects) y.subjects=buildSubjectsRegistry(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
+function normalizeState(s){ Object.keys(s.years||{}).forEach(function(k){ const y=s.years[k]; if(y){ if(y.exams) sortExamList(y.exams); normalizeSettings(y); fixMasterSeed(y); if(!y.subjects) y.subjects=buildSubjectsRegistry(y); normalizeSubjectRooms(y); (y.teachers||[]).forEach(normalizeTeacher); } }); return s; }
 function buildInitialYear(initialExams){
   const first=initialExams[0];
   const teachers=first.teachers.map(function(t){ return {name:t.name, gradeRole:roleToGradeRole(t.role), division:roleToDivision(t.role), total:t.prev||0}; });
@@ -1064,7 +1079,8 @@ function buildSubjectsTemplateAOA(y){
   const aoa=[[TPL_MARK,'subjects','v1'],['科目名','学年・コース','教室名']];
   (y.subjects||[]).forEach(function(m){
     const tag=SUBJ_TRACK_LABEL[m.track]||'3年（共通）';
-    if((m.rooms||[]).length) (m.rooms||[]).forEach(function(rm){ aoa.push([m.name,tag,rm]); });
+    if(m.rooms===null) aoa.push([m.name,tag,'全HR']);
+    else if((m.rooms||[]).length) (m.rooms||[]).forEach(function(rm){ aoa.push([m.name,tag,rm]); });
     else aoa.push([m.name,tag,'']);
   });
   for(let i=0;i<3;i++) aoa.push(['','','']);
@@ -1079,9 +1095,11 @@ function parseSubjectsTemplate(rows){
     const tag=tagMap[fw2hw(tplCell(row[1])).replace(/\s/g,'').replace(/（/g,'(').replace(/）/g,')')]||'3年共通';
     const room=tplCell(row[2]);
     const key=tag+'|'+subjKey(name);
-    if(!idx[key]){ idx[key]={name:name,track:tag,rooms:[]}; list.push(idx[key]); }
-    if(room&&idx[key].rooms.indexOf(room)<0) idx[key].rooms.push(room);
+    if(!idx[key]){ idx[key]={name:name,track:tag,rooms:[],auto:false}; list.push(idx[key]); }
+    if(room==='全HR') idx[key].auto=true;
+    else if(room&&idx[key].rooms.indexOf(room)<0) idx[key].rooms.push(room);
   }
+  list.forEach(function(e){ if(e.auto) e.rooms=null; delete e.auto; });
   return list;
 }
 function masterToSubjects(entries){
@@ -1099,7 +1117,7 @@ function buildCombinedTemplate(y){
 
 <script id="ui">
 "use strict";
-const LS_KEY='examSupervisorV23';
+const LS_KEY='examSupervisorV24';
 const INITIAL=JSON.parse(document.getElementById('initial-data').textContent);
 const $=function(id){ return document.getElementById(id); };
 function freshState(){
@@ -1108,6 +1126,7 @@ function freshState(){
 }
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.years&&s.years[s.currentYear]) return normalizeState(s); }catch(e){}
+  try{ const s23=JSON.parse(localStorage.getItem('examSupervisorV23')); if(s23&&s23.years&&s23.years[s23.currentYear]) return normalizeState(s23); }catch(e){}
   try{ const s22=JSON.parse(localStorage.getItem('examSupervisorV22')); if(s22&&s22.years&&s22.years[s22.currentYear]) return normalizeState(s22); }catch(e){}
   try{ const s21=JSON.parse(localStorage.getItem('examSupervisorV21')); if(s21&&s21.years&&s21.years[s21.currentYear]) return normalizeState(s21); }catch(e){}
   try{ const s20=JSON.parse(localStorage.getItem('examSupervisorV20')); if(s20&&s20.years&&s20.years[s20.currentYear]) return normalizeState(s20); }catch(e){}
@@ -1525,6 +1544,13 @@ function renderPlan(){
   });
 }
 // ---------- rooms master ----------
+function subjRoomsCellHtml(y,m,mi){
+  const isG12=(m.track==='1年'||m.track==='2年');
+  if(isG12&&m.rooms===null) return '<span class="small">全HR（自動）</span> <button class="m-custom" data-mi="'+mi+'">教室を指定</button>';
+  let cell='<input type="text" class="m-in" data-mi="'+mi+'" data-f="rooms" value="'+esc((m.rooms||[]).join(','))+'" size="30">';
+  if(isG12) cell+=' <button class="m-auto" data-mi="'+mi+'">全HRに戻す</button>';
+  return cell;
+}
 function renderRooms(){
   const y=curYear();
   const unreg=unregisteredSubjects(y.exams, y.subjects);
@@ -1535,7 +1561,7 @@ function renderRooms(){
   (y.subjects||[]).forEach(function(m,mi){
     h+='<tr><td><input type="text" class="m-in" data-mi="'+mi+'" data-f="name" value="'+esc(m.name)+'"></td>'
       +'<td><select class="m-sel" data-mi="'+mi+'" data-f="track">'+SUBJ_TRACKS.map(function(t){ return '<option value="'+t+'"'+(m.track===t?' selected':'')+'>'+SUBJ_TRACK_LABEL[t]+'</option>'; }).join('')+'</select></td>'
-      +'<td><input type="text" class="m-in" data-mi="'+mi+'" data-f="rooms" value="'+esc((m.rooms||[]).join(','))+'" size="30"></td>'
+      +'<td>'+subjRoomsCellHtml(y,m,mi)+'</td>'
       +'<td><button class="danger m-del" data-mi="'+mi+'">削除</button></td></tr>';
   });
   $('masterTable').innerHTML=h;
@@ -1551,6 +1577,19 @@ function renderRooms(){
     sel.addEventListener('change',function(){
       const m=(y.subjects||[])[parseInt(sel.dataset.mi,10)]; if(!m) return;
       m.track=sel.value; saveState(); render();
+    });
+  });
+  $('masterTable').querySelectorAll('.m-custom').forEach(function(b){
+    b.addEventListener('click',function(){
+      const m=(y.subjects||[])[parseInt(b.dataset.mi,10)]; if(!m) return;
+      m.rooms=(m.track==='1年'?(y.settings.g1rooms||[]):(y.settings.g2rooms||[])).slice();
+      saveState(); render();
+    });
+  });
+  $('masterTable').querySelectorAll('.m-auto').forEach(function(b){
+    b.addEventListener('click',function(){
+      const m=(y.subjects||[])[parseInt(b.dataset.mi,10)]; if(!m) return;
+      m.rooms=null; saveState(); render();
     });
   });
   $('masterTable').querySelectorAll('.m-del').forEach(function(b){
@@ -1730,7 +1769,7 @@ $('btnAddExam').addEventListener('click',function(){
 });
 $('btnAddMaster').addEventListener('click',function(){ const y=curYear(); if(!y.subjects) y.subjects=[]; y.subjects.push({name:'',track:'3年共通',rooms:[]}); saveState(); render(); });
 $('btnAddTeacher').addEventListener('click',function(){ curYear().teachers.push({name:'新しい教員',gradeRole:'',division:'',total:0}); saveState(); render(); });
-$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV22'); localStorage.removeItem('examSupervisorV21'); localStorage.removeItem('examSupervisorV20'); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
+$('btnReset').addEventListener('click',function(){ if(confirm('保存データを消して初期データに戻しますか？')){ localStorage.removeItem(LS_KEY); localStorage.removeItem('examSupervisorV23'); localStorage.removeItem('examSupervisorV22'); localStorage.removeItem('examSupervisorV21'); localStorage.removeItem('examSupervisorV20'); localStorage.removeItem('examSupervisorV19'); localStorage.removeItem('examSupervisorV18'); localStorage.removeItem('examSupervisorV17'); localStorage.removeItem('examSupervisorV16'); localStorage.removeItem('examSupervisorV15'); localStorage.removeItem('examSupervisorV14'); localStorage.removeItem('examSupervisorV13'); localStorage.removeItem('examSupervisorV12'); localStorage.removeItem('examSupervisorV11'); localStorage.removeItem('examSupervisorV10'); localStorage.removeItem('examSupervisorV9'); localStorage.removeItem('examSupervisorV8'); localStorage.removeItem('examSupervisorV7'); localStorage.removeItem('examSupervisorV6'); localStorage.removeItem('examSupervisorV5'); localStorage.removeItem('examSupervisorV4'); localStorage.removeItem('examSupervisorV3'); localStorage.removeItem('examSupervisorV2'); state=freshState(); saveState(); render(); } });
 ['setG1','setG2'].forEach(function(id){
   $(id).addEventListener('change',function(){
     const y=curYear();
@@ -1892,7 +1931,7 @@ $('btnTplTeachers').addEventListener('click',function(){
 });
 $('btnTplRooms').addEventListener('click',function(){
   downloadTemplate('科目ひな型_'+state.currentYear+'年度.xlsx','科目',buildSubjectsTemplateAOA(curYear()),
-    ['科目登録のひな型です。今の登録内容が入っています。','1行＝1教室です。同じ科目で実施教室が複数あるときは、教室ごとに行を分けてください（1つのセルに1教室だけ）。','学年・コースは「1年」「2年」「3年（文）」「3年（理）」「3年（共通）」のいずれかです。共通は文理どちらの時間割でも選べます。','時間割の科目は、ここに登録したものから選んで入力します。','記入したら、科目登録の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
+    ['科目登録のひな型です。今の登録内容が入っています。','1行＝1教室です。同じ科目で実施教室が複数あるときは、教室ごとに行を分けてください（1つのセルに1教室だけ）。','学年・コースは「1年」「2年」「3年（文）」「3年（理）」「3年（共通）」のいずれかです。共通は文理どちらの時間割でも選べます。','1年・2年で全HRの科目は、教室名のところに「全HR」と書かれた1行で出力されます（その学年の全教室で実施）。','時間割の科目は、ここに登録したものから選んで入力します。','記入したら、科目登録の画面でこのファイルを読み込んでください。1行目の目印は消さないでください。']);
 });
 $('btnTplSheet').addEventListener('click',function(){
   const y=curYear(), exam=curExam();
@@ -2065,7 +2104,7 @@ function showRoomImport(entries){
   msg.textContent='';
   const panel=$('roomImportPanel');
   panel.innerHTML='<div class="warn" style="background:#eaf5ea;border-color:#9c9"><h3 style="color:#256029">読み取り結果：'+entries.length+'件の科目</h3>'
-    + entries.map(function(e){ return '<div>'+esc(e.name)+'（'+esc(SUBJ_TRACK_LABEL[e.track]||e.track)+'） → '+esc(e.rooms.join('、'))+'</div>'; }).join('')
+    + entries.map(function(e){ return '<div>'+esc(e.name)+'（'+esc(SUBJ_TRACK_LABEL[e.track]||e.track)+'） → '+esc(e.rooms?e.rooms.join('、'):'全HR（自動）')+'</div>'; }).join('')
     + '<p><button id="riReplace">置き換える</button> <button id="riAdd">追加・更新する</button> <button id="riCancel">やめる</button></p></div>';
   $('riReplace').addEventListener('click',function(){
     if(!confirm('現在の科目登録を、読み取った'+entries.length+'件で置き換えますか？')) return;
